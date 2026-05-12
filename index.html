@@ -1,1 +1,1169 @@
-# control-produccion
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Control Producción · Plásticos</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@zxing/library@0.19.1/umd/index.min.js"></script>
+<style>
+:root {
+  --bg: #F4F3EE;
+  --surface: #FFFFFF;
+  --surface2: #F0EEE8;
+  --border: rgba(0,0,0,0.08);
+  --border2: rgba(0,0,0,0.14);
+  --text: #1A1916;
+  --text2: #6B6960;
+  --text3: #A8A59C;
+  --accent: #2D4A8A;
+  --accent-light: #EEF2FB;
+  --green: #1A6B4A;
+  --green-bg: #E8F5EE;
+  --amber: #8A5A0A;
+  --amber-bg: #FEF3DC;
+  --red: #8A1A1A;
+  --red-bg: #FDEAEA;
+  --sidebar-w: 210px;
+  --radius: 10px;
+  --radius-lg: 14px;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: 'DM Sans', sans-serif; background: var(--bg); color: var(--text); font-size: 14px; line-height: 1.5; }
+.layout { display: flex; min-height: 100vh; }
+
+/* SIDEBAR */
+.sidebar {
+  width: var(--sidebar-w); background: var(--surface); border-right: 1px solid var(--border);
+  display: flex; flex-direction: column; position: fixed; top: 0; left: 0; height: 100vh; z-index: 100;
+}
+.sidebar-logo {
+  padding: 20px 18px 16px; border-bottom: 1px solid var(--border);
+}
+.sidebar-logo-title { font-size: 15px; font-weight: 600; color: var(--text); letter-spacing: -.02em; }
+.sidebar-logo-sub { font-size: 11px; color: var(--text3); margin-top: 1px; font-family: 'DM Mono', monospace; }
+.sidebar-section { padding: 14px 12px 4px; font-size: 10px; font-weight: 500; color: var(--text3); letter-spacing: .08em; text-transform: uppercase; }
+.nav-item {
+  display: flex; align-items: center; gap: 9px; padding: 9px 14px; margin: 1px 8px;
+  border-radius: var(--radius); cursor: pointer; color: var(--text2); font-size: 13px; font-weight: 400;
+  transition: all .15s; user-select: none;
+}
+.nav-item:hover { background: var(--surface2); color: var(--text); }
+.nav-item.active { background: var(--accent); color: #fff; font-weight: 500; }
+.nav-item svg { width: 16px; height: 16px; flex-shrink: 0; }
+.sidebar-bottom { margin-top: auto; padding: 12px 8px; border-top: 1px solid var(--border); }
+.sync-btn {
+  display: flex; align-items: center; gap: 8px; padding: 9px 14px; border-radius: var(--radius);
+  background: var(--surface2); border: none; color: var(--text2); font-size: 12px; font-family: 'DM Sans', sans-serif;
+  cursor: pointer; width: 100%; font-weight: 500; transition: all .15s;
+}
+.sync-btn:hover { background: var(--border); color: var(--text); }
+.sync-btn.loading { opacity: .7; pointer-events: none; }
+
+/* MAIN */
+.main { margin-left: var(--sidebar-w); flex: 1; padding: 28px 28px 40px; min-height: 100vh; }
+.page { display: none; }
+.page.active { display: block; animation: fadeIn .2s ease; }
+@keyframes fadeIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: translateY(0); } }
+@keyframes shake { 0%,100%{transform:translateX(0)} 20%,60%{transform:translateX(-8px)} 40%,80%{transform:translateX(8px)} }
+.page-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 22px; }
+.page-title { font-size: 22px; font-weight: 600; letter-spacing: -.03em; color: var(--text); }
+.page-subtitle { font-size: 12px; color: var(--text3); margin-top: 2px; font-family: 'DM Mono', monospace; }
+
+/* STATS */
+.stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; margin-bottom: 22px; }
+.stat-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: 16px; }
+.stat-label { font-size: 11px; color: var(--text3); font-weight: 500; letter-spacing: .04em; text-transform: uppercase; margin-bottom: 6px; }
+.stat-value { font-size: 28px; font-weight: 600; letter-spacing: -.04em; font-family: 'DM Mono', monospace; }
+.stat-value.green { color: var(--green); }
+.stat-value.amber { color: var(--amber); }
+.stat-value.red { color: var(--red); }
+
+/* CARDS */
+.card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: 18px; margin-bottom: 16px; }
+.card-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; }
+.card-title { font-size: 13px; font-weight: 600; color: var(--text); letter-spacing: -.01em; }
+.two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+
+/* TABLE */
+.table-wrap { overflow-x: auto; }
+table { width: 100%; border-collapse: collapse; font-size: 13px; }
+th { text-align: left; padding: 8px 10px; font-size: 11px; font-weight: 500; color: var(--text3); border-bottom: 1px solid var(--border); letter-spacing: .04em; text-transform: uppercase; white-space: nowrap; }
+td { padding: 9px 10px; border-bottom: 1px solid var(--border); color: var(--text); vertical-align: middle; }
+tr:last-child td { border-bottom: none; }
+tbody tr:hover td { background: var(--surface2); }
+.empty-row { text-align: center; padding: 28px; color: var(--text3); font-size: 13px; }
+
+/* BADGES */
+.badge { display: inline-flex; align-items: center; padding: 3px 9px; border-radius: 20px; font-size: 11px; font-weight: 500; font-family: 'DM Mono', monospace; }
+.badge-green { background: var(--green-bg); color: var(--green); }
+.badge-amber { background: var(--amber-bg); color: var(--amber); }
+.badge-red { background: var(--red-bg); color: var(--red); }
+.badge-blue { background: var(--accent-light); color: var(--accent); }
+.badge-gray { background: var(--surface2); color: var(--text2); }
+
+/* FORMS */
+.form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+.form-grid.three { grid-template-columns: 1fr 1fr 1fr; }
+.full-col { grid-column: 1 / -1; }
+.form-group { display: flex; flex-direction: column; gap: 5px; }
+.form-group label { font-size: 11px; font-weight: 500; color: var(--text2); letter-spacing: .03em; text-transform: uppercase; }
+.form-group input, .form-group select, .form-group textarea {
+  border: 1px solid var(--border2); border-radius: var(--radius); padding: 8px 11px; font-size: 13px;
+  background: var(--surface); color: var(--text); font-family: 'DM Sans', sans-serif; width: 100%;
+  transition: border-color .15s, box-shadow .15s; outline: none;
+}
+.form-group input:focus, .form-group select:focus, .form-group textarea:focus {
+  border-color: var(--accent); box-shadow: 0 0 0 3px rgba(45,74,138,.1);
+}
+.form-group textarea { min-height: 70px; resize: vertical; }
+
+/* BUTTONS */
+.btn { display: inline-flex; align-items: center; gap: 7px; padding: 8px 16px; border-radius: var(--radius); font-size: 13px; font-family: 'DM Sans', sans-serif; font-weight: 500; cursor: pointer; border: 1px solid var(--border2); background: var(--surface); color: var(--text); transition: all .15s; }
+.btn:hover { background: var(--surface2); }
+.btn:active { transform: scale(.97); }
+.btn-primary { background: var(--accent); color: #fff; border-color: var(--accent); }
+.btn-primary:hover { background: #1e3570; }
+.btn-sm { padding: 5px 12px; font-size: 12px; }
+.btn-row { display: flex; gap: 8px; margin-top: 16px; justify-content: flex-end; }
+
+/* ALERTS */
+.alert { padding: 10px 14px; border-radius: var(--radius); font-size: 13px; margin-bottom: 12px; border: 1px solid; }
+.alert-ok { background: var(--green-bg); color: var(--green); border-color: #b8dfc8; }
+.alert-err { background: var(--red-bg); color: var(--red); border-color: #f0b8b8; }
+.alert-inf { background: var(--accent-light); color: var(--accent); border-color: #c0cef0; }
+
+/* PROGRESS */
+.progress-bar { height: 5px; background: var(--surface2); border-radius: 3px; overflow: hidden; margin-top: 5px; }
+.progress-fill { height: 100%; border-radius: 3px; transition: width .4s ease; }
+
+/* SEMAFORO */
+.dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+.dot-green { background: var(--green); }
+.dot-amber { background: #D4851A; }
+.dot-red { background: #C0282A; }
+.inv-row { display: flex; align-items: center; gap: 10px; padding: 9px 0; border-bottom: 1px solid var(--border); }
+.inv-row:last-child { border-bottom: none; }
+.inv-row-name { flex: 1; font-size: 13px; }
+.inv-row-num { font-size: 13px; color: var(--text2); font-family: 'DM Mono', monospace; }
+
+/* OP CARD */
+.op-card { padding: 12px 0; border-bottom: 1px solid var(--border); }
+.op-card:last-child { border-bottom: none; }
+.op-card-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px; }
+.op-num { font-size: 13px; font-weight: 600; font-family: 'DM Mono', monospace; }
+.op-pct { font-size: 13px; font-weight: 600; font-family: 'DM Mono', monospace; }
+.op-sub { font-size: 11px; color: var(--text3); display: flex; gap: 10px; margin-top: 4px; }
+
+/* GLOBAL ALERT BAR */
+#global-bar { position: fixed; top: 0; left: 0; right: 0; z-index: 999; }
+.global-alert { padding: 10px 20px; font-size: 13px; text-align: center; font-weight: 500; }
+.global-alert.ok { background: var(--green-bg); color: var(--green); border-bottom: 1px solid #b8dfc8; }
+.global-alert.err { background: var(--red-bg); color: var(--red); border-bottom: 1px solid #f0b8b8; }
+.global-alert.inf { background: var(--accent-light); color: var(--accent); border-bottom: 1px solid #c0cef0; }
+
+/* LOGIN */
+.login-screen { position:fixed;top:0;left:0;right:0;bottom:0;background:var(--accent);display:flex;align-items:center;justify-content:center;z-index:9999; }
+.login-box { background:#fff;border-radius:20px;padding:32px 28px;width:90%;max-width:360px;text-align:center;box-shadow:0 20px 60px rgba(0,0,0,.2); }
+.login-logo { font-size:20px;font-weight:600;color:var(--accent);margin-bottom:4px; }
+.login-sub { font-size:12px;color:var(--text3);margin-bottom:24px; }
+.pin-display { display:flex;gap:10px;justify-content:center;margin-bottom:24px; }
+.pin-dot { width:14px;height:14px;border-radius:50%;background:var(--surface2);border:2px solid var(--border2);transition:all .15s; }
+.pin-dot.filled { background:var(--accent);border-color:var(--accent); }
+.pin-grid { display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:16px; }
+.pin-btn { padding:16px;border-radius:12px;border:1px solid var(--border2);background:var(--surface);font-size:20px;font-weight:500;cursor:pointer;transition:all .15s;font-family:'DM Sans',sans-serif; }
+.pin-btn:hover { background:var(--accent-light);border-color:var(--accent); }
+.pin-btn:active { transform:scale(.94);background:var(--accent);color:#fff; }
+.pin-btn.del { font-size:16px;color:var(--text2); }
+.login-error { color:var(--red);font-size:12px;margin-top:8px;min-height:18px; }
+.user-badge { display:flex;align-items:center;gap:8px;padding:8px 12px;background:var(--surface2);border-radius:8px;margin-bottom:10px; }
+.user-badge-name { font-size:13px;font-weight:500; }
+.user-badge-rol { font-size:11px;color:var(--text3); }
+.logout-btn { background:none;border:none;color:var(--text3);font-size:12px;cursor:pointer;padding:4px 8px;border-radius:6px; }
+.logout-btn:hover { background:var(--surface2);color:var(--text); }
+@media (max-width: 700px) {
+  .sidebar { transform: translateX(-100%); transition: transform .25s; }
+  .sidebar.open { transform: translateX(0); }
+  .main { margin-left: 0; padding: 16px; }
+  .form-grid, .two-col { grid-template-columns: 1fr; }
+  .form-grid.three { grid-template-columns: 1fr 1fr; }
+  .stats-grid { grid-template-columns: 1fr 1fr; }
+  .mobile-menu { display: flex !important; }
+  .page-title { font-size: 18px; }
+}
+.mobile-menu { display: none; align-items: center; gap: 8px; padding: 12px 16px; background: var(--surface); border-bottom: 1px solid var(--border); position: sticky; top: 0; z-index: 50; }
+.mobile-menu button { background: none; border: none; cursor: pointer; padding: 4px; color: var(--text); }
+</style>
+</head>
+<body>
+
+<div id="global-bar"></div>
+
+<!-- LOGIN SCREEN -->
+<div class="login-screen" id="login-screen">
+  <div class="login-box">
+    <div class="login-logo">🏭 Control Producción</div>
+    <div class="login-sub">Plásticos · Ingresa tu PIN</div>
+    <div class="pin-display">
+      <div class="pin-dot" id="pd1"></div>
+      <div class="pin-dot" id="pd2"></div>
+      <div class="pin-dot" id="pd3"></div>
+      <div class="pin-dot" id="pd4"></div>
+    </div>
+    <div class="pin-grid">
+      <button class="pin-btn" onclick="pinPress('1')">1</button>
+      <button class="pin-btn" onclick="pinPress('2')">2</button>
+      <button class="pin-btn" onclick="pinPress('3')">3</button>
+      <button class="pin-btn" onclick="pinPress('4')">4</button>
+      <button class="pin-btn" onclick="pinPress('5')">5</button>
+      <button class="pin-btn" onclick="pinPress('6')">6</button>
+      <button class="pin-btn" onclick="pinPress('7')">7</button>
+      <button class="pin-btn" onclick="pinPress('8')">8</button>
+      <button class="pin-btn" onclick="pinPress('9')">9</button>
+      <button class="pin-btn" onclick="pinPress('0')" style="grid-column:2">0</button>
+      <button class="pin-btn del" onclick="pinDelete()">⌫</button>
+    </div>
+    <div class="login-error" id="login-error"></div>
+  </div>
+</div>
+
+<div class="mobile-menu">
+  <button onclick="toggleSidebar()">
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+  </button>
+  <span style="font-size:14px;font-weight:600">Control Producción</span>
+</div>
+
+<div class="layout">
+<nav class="sidebar" id="sidebar">
+  <div class="sidebar-logo">
+    <div class="sidebar-logo-title">Control Producción</div>
+    <div class="sidebar-logo-sub">Plásticos · v1.0</div>
+  </div>
+
+  <div class="sidebar-section">Principal</div>
+  <div class="nav-item active" onclick="go('dash',this)">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>Dashboard
+  </div>
+  <div class="nav-item" onclick="go('ops',this)">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2"/><rect x="9" y="3" width="6" height="4" rx="1"/><line x1="9" y1="12" x2="15" y2="12"/><line x1="9" y1="16" x2="13" y2="16"/></svg>Órdenes OP
+  </div>
+  <div class="nav-item" onclick="go('prod',this)">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.07 4.93l-1.41 1.41M5.34 17.66l-1.41 1.41M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 18.34l1.41 1.41M2 12h2M20 12h2"/></svg>Registrar prod.
+  </div>
+  <div class="nav-item" onclick="go('consumos',this)">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M3 12h18M3 18h18"/></svg>Consumos MP
+  </div>
+  <div class="nav-item" onclick="go('paros',this)">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>Paros de máquina
+  </div>
+
+  <div class="sidebar-section">Almacén</div>
+  <div class="nav-item" onclick="go('invmp',this)">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9,22 9,12 15,12 15,22"/></svg>Inv. MP
+  </div>
+  <div class="nav-item" onclick="go('entmp',this)">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="1" y="3" width="15" height="13"/><path d="M16 8h4l3 3v5h-7V8z"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg>Entrada MP
+  </div>
+  <div class="nav-item" onclick="go('invpt',this)">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 16V8a2 2 0 00-1-1.73l-7-4a2 2 0 00-2 0l-7 4A2 2 0 003 8v8a2 2 0 001 1.73l7 4a2 2 0 002 0l7-4A2 2 0 0021 16z"/></svg>Inv. PT
+  </div>
+  <div class="nav-item" onclick="go('embarques',this)">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 17H3a2 2 0 01-2-2V5a2 2 0 012-2h11a2 2 0 012 2v3"/><rect x="9" y="11" width="14" height="10" rx="2"/><circle cx="12" cy="21" r="1"/><circle cx="20" cy="21" r="1"/></svg>Embarques PT
+  </div>
+
+  <div class="sidebar-section">Auditoría</div>
+  <div class="nav-item" onclick="go('traz',this)">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22,12 18,12 15,21 9,3 6,12 2,12"/></svg>Trazabilidad
+  </div>
+
+  <div class="sidebar-bottom">
+    <div class="user-badge">
+      <div style="width:28px;height:28px;border-radius:50%;background:var(--accent);display:flex;align-items:center;justify-content:center;color:#fff;font-size:12px;font-weight:600" id="user-avatar">?</div>
+      <div style="flex:1;min-width:0">
+        <div class="user-badge-name" id="user-name">Usuario</div>
+        <div class="user-badge-rol" id="user-rol">—</div>
+      </div>
+      <button class="logout-btn" onclick="logout()" title="Cerrar sesión">⏻</button>
+    </div>
+    <button class="sync-btn" id="sync-btn" onclick="loadAll()">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 102.13-9.36L1 10"/></svg>
+      Sincronizar datos
+    </button>
+  </div>
+</nav>
+
+<main class="main">
+
+<!-- DASHBOARD -->
+<div class="page active" id="p-dash">
+  <div class="page-header">
+    <div><div class="page-title">Dashboard</div><div class="page-subtitle" id="d-fecha"></div></div>
+  </div>
+  <div class="stats-grid" id="d-stats">
+    <div class="stat-card"><div class="stat-label">Cargando...</div><div class="stat-value">—</div></div>
+  </div>
+  <div class="two-col">
+    <div class="card"><div class="card-header"><div class="card-title">Órdenes activas</div></div><div id="d-ops"></div></div>
+    <div class="card"><div class="card-header"><div class="card-title">Inventario MP</div><span style="font-size:11px;color:var(--text3)">semáforo</span></div><div id="d-mp"></div></div>
+  </div>
+</div>
+
+<!-- ÓRDENES -->
+<div class="page" id="p-ops">
+  <div class="page-header">
+    <div><div class="page-title">Órdenes de producción</div></div>
+    <button class="btn btn-primary" onclick="toggleCard('form-op')">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>Nueva OP
+    </button>
+  </div>
+  <div class="card" id="form-op" style="display:none">
+    <div class="card-header"><div class="card-title">Nueva orden de producción</div></div>
+    <div id="al-op"></div>
+    <div class="form-grid">
+      <div class="form-group"><label>Número OP</label><input id="op-num" placeholder="OP-2026-000001"/></div>
+      <div class="form-group"><label>Producto</label><select id="op-prod"></select></div>
+      <div class="form-group"><label>Cantidad planeada</label><input id="op-cant" type="number" placeholder="100"/></div>
+      <div class="form-group"><label>Máquina</label><select id="op-maq"></select></div>
+      <div class="form-group"><label>Turno</label><select id="op-turno"><option>Mañana</option><option>Tarde</option><option>Noche</option></select></div>
+      <div class="form-group"><label>Fecha planeada</label><input id="op-fecha" type="date"/></div>
+      <div class="form-group"><label>Lote</label><input id="op-lote" placeholder="L20260511-001"/></div>
+      <div class="form-group"><label>Estatus</label><select id="op-est"><option>Pendiente</option><option>En proceso</option><option>Cerrada</option></select></div>
+      <div class="form-group full-col"><label>Notas</label><textarea id="op-notas"></textarea></div>
+    </div>
+    <div class="btn-row">
+      <button class="btn" onclick="toggleCard('form-op')">Cancelar</button>
+      <button class="btn btn-primary" onclick="saveOP()">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20,6 9,17 4,12"/></svg>Guardar en Sheets
+      </button>
+    </div>
+  </div>
+  <div class="card">
+    <div class="table-wrap">
+      <table><thead><tr><th>Número OP</th><th>Producto</th><th>Avance</th><th>Máquina</th><th>Turno</th><th>Estatus</th><th>Fecha</th><th>Acción</th><th></th></tr></thead>
+      <tbody id="t-ops"></tbody></table>
+    </div>
+  </div>
+</div>
+
+<!-- PRODUCCIÓN -->
+<div class="page" id="p-prod">
+  <div class="page-header"><div class="page-title">Registrar producción</div></div>
+
+  <!-- Scanner modal -->
+  <div id="scanner-modal" style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.85);z-index:999;flex-direction:column;align-items:center;justify-content:center">
+    <div style="background:#1a1a1a;border-radius:16px;padding:20px;width:90%;max-width:440px">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
+        <span style="color:#fff;font-size:15px;font-weight:600">Escanear código de barras</span>
+        <button onclick="stopScanner()" style="background:none;border:none;color:#aaa;font-size:20px;cursor:pointer">✕</button>
+      </div>
+      <div style="position:relative;border-radius:10px;overflow:hidden;background:#000">
+        <video id="scanner-video" style="width:100%;height:260px;object-fit:cover" autoplay playsinline></video>
+        <div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:220px;height:80px;border:2px solid #00ff88;border-radius:6px;pointer-events:none"></div>
+        <div style="position:absolute;bottom:10px;left:0;right:0;text-align:center;color:#00ff88;font-size:12px">Apunta al código de barras del producto</div>
+      </div>
+      <div id="scanner-status" style="color:#aaa;font-size:12px;text-align:center;margin-top:10px">Iniciando cámara...</div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div id="al-prod"></div>
+
+    <!-- Producto escaneado info -->
+    <div id="scan-result" style="display:none;background:#e8f5ee;border:1px solid #b8dfc8;border-radius:10px;padding:12px;margin-bottom:14px">
+      <div style="display:flex;align-items:center;gap:10px">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#1A6B4A" stroke-width="2.5"><polyline points="20,6 9,17 4,12"/></svg>
+        <div>
+          <div style="font-size:12px;color:#1A6B4A;font-weight:600">Producto escaneado</div>
+          <div id="scan-prod-name" style="font-size:14px;font-weight:600;color:#0f4a31"></div>
+          <div id="scan-op-name" style="font-size:12px;color:#1A6B4A"></div>
+        </div>
+        <button onclick="clearScan()" style="margin-left:auto;background:none;border:none;color:#1A6B4A;cursor:pointer;font-size:18px">✕</button>
+      </div>
+    </div>
+
+    <div style="display:flex;gap:10px;margin-bottom:14px">
+      <button class="btn btn-primary" onclick="openScanner()" style="flex:1;justify-content:center;padding:12px">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><line x1="14" y1="14" x2="14" y2="21"/><line x1="14" y1="14" x2="21" y2="14"/><line x1="21" y1="17" x2="21" y2="21"/><line x1="17" y1="21" x2="21" y2="21"/></svg>
+        Escanear código de barras
+      </button>
+      <button class="btn" onclick="toggleManual()" style="padding:12px 16px" title="Seleccionar manualmente">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
+        Manual
+      </button>
+    </div>
+
+    <div id="manual-select" style="display:none;margin-bottom:14px">
+      <div class="form-group"><label>Seleccionar OP manualmente</label><select id="pr-op"></select></div>
+    </div>
+
+    <div class="form-grid">
+      <div class="form-group"><label>Turno</label><select id="pr-turno"><option>Mañana</option><option>Tarde</option><option>Noche</option></select></div>
+      <div class="form-group"><label>Cantidad producida</label><input id="pr-cant" type="number" placeholder="0"/></div>
+      <div class="form-group"><label>Merma</label><input id="pr-merma" type="number" placeholder="0"/></div>
+      <div class="form-group"><label>Hora inicio</label><input id="pr-hi" type="time"/></div>
+      <div class="form-group"><label>Hora fin</label><input id="pr-hf" type="time"/></div>
+      <div class="form-group full-col"><label>Observaciones</label><textarea id="pr-obs" placeholder="Observaciones del turno..."></textarea></div>
+    </div>
+    <div class="btn-row">
+      <button class="btn btn-primary" onclick="saveProd()">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20,6 9,17 4,12"/></svg>Guardar registro
+      </button>
+    </div>
+  </div>
+  <div class="card">
+    <div class="card-header"><div class="card-title">Registros recientes</div></div>
+    <div class="table-wrap">
+      <table><thead><tr><th>OP</th><th>Producto</th><th>Producido</th><th>Merma</th><th>Cumplimiento</th><th>Turno</th></tr></thead>
+      <tbody id="t-prod"></tbody></table>
+    </div>
+  </div>
+</div>
+
+<!-- INV MP -->
+<div class="page" id="p-invmp">
+  <div class="page-header"><div class="page-title">Inventario materia prima</div></div>
+  <div class="card">
+    <div class="table-wrap">
+      <table><thead><tr><th>Código</th><th>Material</th><th>Stock actual</th><th>Mínimo</th><th>Unidad</th><th>Estado</th></tr></thead>
+      <tbody id="t-invmp"></tbody></table>
+    </div>
+  </div>
+</div>
+
+<!-- ENTRADA MP -->
+<div class="page" id="p-entmp">
+  <div class="page-header"><div class="page-title">Entrada de materia prima</div></div>
+  <div class="card">
+    <div id="al-ent"></div>
+    <div class="form-grid">
+      <div class="form-group"><label>Material</label><select id="ent-mat"></select></div>
+      <div class="form-group"><label>Cantidad (kg)</label><input id="ent-cant" type="number" placeholder="0"/></div>
+      <div class="form-group"><label>Lote proveedor</label><input id="ent-lote" placeholder="LP-001"/></div>
+      <div class="form-group"><label>Proveedor</label><input id="ent-prov" placeholder="Nombre proveedor"/></div>
+      <div class="form-group"><label>Factura</label><input id="ent-fact" placeholder="FAC-001"/></div>
+      <div class="form-group"><label>Fecha recepción</label><input id="ent-fecha" type="date"/></div>
+    </div>
+    <div class="btn-row">
+      <button class="btn btn-primary" onclick="saveEnt()">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20,6 9,17 4,12"/></svg>Registrar entrada
+      </button>
+    </div>
+  </div>
+  <div class="card">
+    <div class="card-header"><div class="card-title">Entradas recientes</div></div>
+    <div class="table-wrap">
+      <table><thead><tr><th>Material</th><th>Cantidad</th><th>Lote</th><th>Proveedor</th><th>Fecha</th></tr></thead>
+      <tbody id="t-ent"></tbody></table>
+    </div>
+  </div>
+</div>
+
+<!-- INV PT -->
+<div class="page" id="p-invpt">
+  <div class="page-header"><div class="page-title">Inventario producto terminado</div></div>
+  <div class="card">
+    <div class="table-wrap">
+      <table><thead><tr><th>Código</th><th>Producto</th><th>Stock actual (rollos)</th><th>Unidad</th></tr></thead>
+      <tbody id="t-invpt"></tbody></table>
+    </div>
+  </div>
+</div>
+
+<!-- PAROS DE MÁQUINA -->
+<div class="page" id="p-paros">
+  <div class="page-header"><div class="page-title">Paros de máquina</div></div>
+
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px">
+    <div class="card">
+      <div class="card-header"><div class="card-title">Reportar paro</div></div>
+      <div id="al-paro"></div>
+      <div class="form-grid">
+        <div class="form-group"><label>Máquina</label><select id="par-maq"></select></div>
+        <div class="form-group"><label>Orden de producción</label><select id="par-op"></select></div>
+        <div class="form-group"><label>Tipo de paro</label>
+          <select id="par-tipo">
+            <option>Mantenimiento</option>
+            <option>Falta MP</option>
+            <option>Falla eléctrica</option>
+            <option>Falla de molde</option>
+            <option>Cambio de formato</option>
+            <option>Otro</option>
+          </select>
+        </div>
+        <div class="form-group"><label>Hora inicio</label><input id="par-hinicio" type="time"/></div>
+        <div class="form-group full-col"><label>Causa / descripción</label><textarea id="par-causa" placeholder="Describe la causa del paro..."></textarea></div>
+      </div>
+      <div class="btn-row">
+        <button class="btn btn-primary" style="background:#E24B4A;border-color:#E24B4A" onclick="saveParo()">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>Registrar paro
+        </button>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header"><div class="card-title" style="color:#E24B4A">⚠ Paros activos</div></div>
+      <div id="paros-activos"></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-header"><div class="card-title">Historial de paros</div></div>
+    <div class="table-wrap">
+      <table><thead><tr><th>Máquina</th><th>OP</th><th>Tipo</th><th>Causa</th><th>Inicio</th><th>Fin</th><th>Duración</th><th>Estado</th></tr></thead>
+      <tbody id="t-paros"></tbody></table>
+    </div>
+  </div>
+</div>
+
+<!-- CONSUMOS MP -->
+<div class="page" id="p-consumos">
+  <div class="page-header"><div class="page-title">Consumos de materia prima</div></div>
+  <div class="card">
+    <div class="card-header"><div class="card-title">Registrar consumo</div></div>
+    <div id="al-consumo"></div>
+    <div class="form-grid">
+      <div class="form-group"><label>Orden de producción</label><select id="con-op"></select></div>
+      <div class="form-group"><label>Material</label><select id="con-mat"></select></div>
+      <div class="form-group"><label>Cantidad consumida</label><input id="con-cant" type="number" placeholder="0"/></div>
+      <div class="form-group"><label>Lote del material</label><input id="con-lote" placeholder="LP-001"/></div>
+    </div>
+    <div class="btn-row">
+      <button class="btn btn-primary" onclick="saveConsumo()">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20,6 9,17 4,12"/></svg>Registrar consumo
+      </button>
+    </div>
+  </div>
+  <div class="card">
+    <div class="card-header"><div class="card-title">Consumos recientes</div></div>
+    <div class="table-wrap">
+      <table><thead><tr><th>OP</th><th>Material</th><th>Cantidad</th><th>Lote</th><th>Fecha</th></tr></thead>
+      <tbody id="t-consumos"></tbody></table>
+    </div>
+  </div>
+</div>
+
+<!-- EMBARQUES PT -->
+<div class="page" id="p-embarques">
+  <div class="page-header">
+    <div><div class="page-title">Embarques de producto terminado</div></div>
+    <button class="btn btn-primary" onclick="toggleCard('form-emb')">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>Nuevo embarque
+    </button>
+  </div>
+  <div class="card" id="form-emb" style="display:none">
+    <div class="card-header"><div class="card-title">Registrar embarque</div></div>
+    <div id="al-emb"></div>
+    <div class="form-grid">
+      <div class="form-group"><label>Folio embarque</label><input id="emb-folio" placeholder="EMB-001"/></div>
+      <div class="form-group"><label>Cliente / Destino</label><input id="emb-cliente" placeholder="Cliente SA de CV"/></div>
+      <div class="form-group"><label>Producto</label><select id="emb-prod"></select></div>
+      <div class="form-group"><label>Cantidad (rollos)</label><input id="emb-cant" type="number" placeholder="0"/></div>
+      <div class="form-group"><label>Fecha embarque</label><input id="emb-fecha" type="date"/></div>
+      <div class="form-group"><label>Notas</label><input id="emb-notas" placeholder="Opcional"/></div>
+    </div>
+    <div class="btn-row">
+      <button class="btn" onclick="toggleCard('form-emb')">Cancelar</button>
+      <button class="btn btn-primary" onclick="saveEmbarque()">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20,6 9,17 4,12"/></svg>Guardar embarque
+      </button>
+    </div>
+  </div>
+  <div class="card">
+    <div class="table-wrap">
+      <table><thead><tr><th>Folio</th><th>Cliente</th><th>Producto</th><th>Cantidad</th><th>Fecha</th></tr></thead>
+      <tbody id="t-embarques"></tbody></table>
+    </div>
+  </div>
+</div>
+
+<!-- TRAZABILIDAD -->
+<div class="page" id="p-traz">
+  <div class="page-header"><div class="page-title">Log de trazabilidad</div></div>
+  <div class="card">
+    <div class="table-wrap">
+      <table><thead><tr><th>Timestamp</th><th>Tipo</th><th>Material / Producto</th><th>Cantidad</th><th>Antes</th><th>Después</th><th>Referencia</th></tr></thead>
+      <tbody id="t-traz"></tbody></table>
+    </div>
+  </div>
+</div>
+
+</main>
+</div>
+
+<script>
+const API = 'https://script.google.com/macros/s/AKfycbyl8kHWy-r9pvyBPax5wln-suhr56-UL7dEZDRDpiejz-yjmzA1bXPDuUQE8ffQtbqV/exec';
+
+let db = { materiales:[], productos:[], maquinas:[], ops:[], registros:[], entradas:[], movimientos:[], consumos:[], embarques:[], paros:[] };
+
+function uid(){ return Math.random().toString(36).substr(2,8); }
+function today(){ return new Date().toISOString().split('T')[0]; }
+function nowStr(){ return new Date().toLocaleString('es-MX'); }
+
+function showGlobal(msg, type, dur=3000){
+  const bar = document.getElementById('global-bar');
+  bar.innerHTML = `<div class="global-alert ${type}">${msg}</div>`;
+  if(dur) setTimeout(()=>bar.innerHTML='', dur);
+}
+
+function showAlert(id, msg, type){
+  const el = document.getElementById(id);
+  if(el) el.innerHTML = `<div class="alert alert-${type}">${msg}</div>`;
+  setTimeout(()=>{ const e=document.getElementById(id); if(e) e.innerHTML=''; }, 3000);
+}
+
+function toggleSidebar(){
+  document.getElementById('sidebar').classList.toggle('open');
+}
+
+function go(id, el){
+  document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(n=>n.classList.remove('active'));
+  document.getElementById('p-'+id).classList.add('active');
+  if(el) el.classList.add('active');
+  document.getElementById('sidebar').classList.remove('open');
+  render(id);
+}
+
+function toggleCard(id){
+  const el = document.getElementById(id);
+  el.style.display = el.style.display === 'none' ? 'block' : 'none';
+}
+
+async function api(params){
+  try{
+    const url = API + '?' + new URLSearchParams(params);
+    const r = await fetch(url);
+    const text = await r.text();
+    return JSON.parse(text);
+  }catch(e){ return {error: e.toString()}; }
+}
+
+async function apiPost(data){
+  try{
+    const r = await fetch(API, { method:'POST', body: JSON.stringify(data) });
+    const text = await r.text();
+    return JSON.parse(text);
+  }catch(e){ return {error: e.toString()}; }
+}
+
+async function loadAll(){
+  const btn = document.getElementById('sync-btn');
+  btn.classList.add('loading');
+  btn.textContent = 'Sincronizando...';
+  showGlobal('Conectando con Google Sheets...', 'inf', 0);
+  const res = await api({action:'getAll'});
+  btn.classList.remove('loading');
+  btn.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 102.13-9.36L1 10"/></svg> Sincronizar datos`;
+  if(res.error){
+    showGlobal('Error de conexión: ' + res.error, 'err', 5000);
+    return;
+  }
+  db.materiales = res.materiales || [];
+  db.productos  = res.productos  || [];
+  db.maquinas   = res.maquinas   || [];
+  db.ops        = res.ops        || [];
+  db.registros  = res.registros  || [];
+  db.entradas   = res.entradas   || [];
+  db.movimientos= res.movimientos|| [];
+  db.consumos   = res.consumos   || [];
+  db.embarques  = res.embarques  || [];
+  db.paros      = res.paros      || [];
+  showGlobal('✓ Datos sincronizados desde Google Sheets', 'ok', 2500);
+  const cur = document.querySelector('.nav-item.active');
+  if(cur){ const m = cur.getAttribute('onclick').match(/'([^']+)'/); if(m) render(m[1]); }
+  else render('dash');
+}
+
+function render(id){
+  if(id==='dash') renderDash();
+  else if(id==='ops') renderOps();
+  else if(id==='prod') renderProd();
+  else if(id==='invmp') renderInvMP();
+  else if(id==='entmp') renderEntMP();
+  else if(id==='invpt') renderInvPT();
+  else if(id==='traz') renderTraz();
+  else if(id==='consumos') renderConsumos();
+  else if(id==='embarques') renderEmbarques();
+  else if(id==='paros') renderParos();
+}
+
+function prodName(id){ const p=db.productos.find(x=>x['Prod ID']===id||x.ProdID===id); return p?.Descripcion||id; }
+function maqName(id){ const m=db.maquinas.find(x=>x.MaqID===id||x['Maq ID']===id||x.Nombre===id); return m?.Nombre||id||'—'; }
+function matName(id){ const m=db.materiales.find(x=>x.MatID===id||x['Mat ID']===id); return m?.Descripcion||id; }
+function fmtFecha(f){ if(!f) return '—'; try{ const d=new Date(f); if(isNaN(d)) return f; return d.toLocaleDateString('es-MX',{day:'2-digit',month:'2-digit',year:'numeric'}); }catch(e){ return f; } }
+
+function renderDash(){
+  document.getElementById('d-fecha').textContent = new Date().toLocaleDateString('es-MX',{weekday:'long',day:'numeric',month:'long',year:'numeric'});
+  const totP = db.registros.reduce((s,r)=>s+(parseFloat(r.CantidadProducida)||0),0);
+  const totM = db.registros.reduce((s,r)=>s+(parseFloat(r.Merma)||0),0);
+  const opsA = db.ops.filter(o=>o.Estatus==='Pendiente'||o.Estatus==='En proceso').length;
+  const matC = db.materiales.filter(m=>(parseFloat(m.StockActual)||0)<=(parseFloat(m.StockMinimo)||0)&&(parseFloat(m.StockMinimo)||0)>0).length;
+  document.getElementById('d-stats').innerHTML = `
+    <div class="stat-card"><div class="stat-label">Producción total</div><div class="stat-value green">${totP}</div></div>
+    <div class="stat-card"><div class="stat-label">Merma total</div><div class="stat-value amber">${totM}</div></div>
+    <div class="stat-card"><div class="stat-label">OPs activas</div><div class="stat-value">${opsA}</div></div>
+    <div class="stat-card"><div class="stat-label">Mat. críticos</div><div class="stat-value ${matC>0?'red':''}">${matC}</div></div>`;
+  document.getElementById('d-ops').innerHTML = db.ops.length === 0
+    ? '<p style="color:var(--text3);font-size:13px;padding:8px 0">Sin órdenes. Crea la primera OP.</p>'
+    : db.ops.map(o=>{
+        const regs = db.registros.filter(r=>r.OPID===o.OPID);
+        const prod = regs.reduce((s,r)=>s+(parseFloat(r.CantidadProducida)||0),0);
+        const cant = parseFloat(o.CantidadPlaneada)||1;
+        const pct = Math.round(prod/cant*100);
+        const col = pct>=100?'var(--green)':pct>=70?'#D4851A':'var(--red)';
+        return `<div class="op-card">
+          <div class="op-card-top"><span class="op-num">${o.NumeroOP}</span><span class="op-pct" style="color:${col}">${pct}%</span></div>
+          <div style="font-size:12px;color:var(--text2)">${prodName(o.ProdID)}</div>
+          <div class="progress-bar"><div class="progress-fill" style="width:${Math.min(pct,100)}%;background:${col}"></div></div>
+          <div class="op-sub"><span>${prod}/${cant} rollos</span><span>${o.Turno||''}</span><span class="badge ${o.Estatus==='Cerrada'?'badge-green':o.Estatus==='En proceso'?'badge-blue':'badge-gray'}">${o.Estatus}</span></div>
+        </div>`;
+      }).join('');
+  document.getElementById('d-mp').innerHTML = db.materiales.length === 0
+    ? '<p style="color:var(--text3);font-size:13px">Sin materiales registrados.</p>'
+    : db.materiales.map(m=>{
+        const s=parseFloat(m.StockActual)||0, mn=parseFloat(m.StockMinimo)||0;
+        const d = s<=0?'dot-red':s<=mn&&mn>0?'dot-amber':'dot-green';
+        return `<div class="inv-row"><div class="dot ${d}"></div><div class="inv-row-name">${m.Descripcion}</div><div class="inv-row-num">${s} ${m.Unidad}</div></div>`;
+      }).join('');
+}
+
+function renderOps(){
+  const sp = document.getElementById('op-prod');
+  if(sp) sp.innerHTML = db.productos.map(p=>`<option value="${p['Prod ID']||p.ProdID}">${p.Descripcion}</option>`).join('');
+  const sm = document.getElementById('op-maq');
+  if(sm) sm.innerHTML = db.maquinas.map(m=>`<option value="${m.MaqID}">${m.Nombre}</option>`).join('');
+  const of = document.getElementById('op-fecha');
+  if(of&&!of.value) of.value = today();
+  const tb = document.getElementById('t-ops');
+  if(!db.ops.length){ tb.innerHTML='<tr><td colspan="8" class="empty-row">Sin órdenes. Crea la primera OP.</td></tr>'; return; }
+  tb.innerHTML = db.ops.map(o=>{
+    const bc = o.Estatus==='Cerrada'||o.Estatus==='Terminada'?'badge-green':o.Estatus==='En proceso'?'badge-blue':o.Estatus==='Cancelada'?'badge-red':'badge-gray';
+    const regs = db.registros.filter(r=>r.OPID===o.OPID);
+    const prod = regs.reduce((s,r)=>s+(parseFloat(r.CantidadProducida)||0),0);
+    const pct = Math.round(prod/(parseFloat(o.CantidadPlaneada)||1)*100);
+    const nextBtns = o.Estatus==='Pendiente'
+      ? `<button class="btn btn-sm cambiar-estatus-btn" data-opid="${o.OPID}" data-estatus="En proceso" style="background:#E6F1FB;color:#185FA5;border-color:#c0cef0">▶ Iniciar</button>`
+      : o.Estatus==='En proceso'
+      ? `<button class="btn btn-sm cambiar-estatus-btn" data-opid="${o.OPID}" data-estatus="Terminada" style="background:#E8F5EE;color:#1A6B4A;border-color:#b8dfc8">✓ Terminar</button>
+         <button class="btn btn-sm cambiar-estatus-btn" data-opid="${o.OPID}" data-estatus="En pausa" style="background:#FDEAEA;color:#8A1A1A;border-color:#f0b8b8">⏸ Pausar</button>`
+      : o.Estatus==='En pausa'
+      ? `<button class="btn btn-sm cambiar-estatus-btn" data-opid="${o.OPID}" data-estatus="En proceso" style="background:#E6F1FB;color:#185FA5;border-color:#c0cef0">▶ Reanudar</button>`
+      : '';
+    return `<tr>
+      <td><strong style="font-family:'DM Mono',monospace;font-size:12px">${o.NumeroOP}</strong></td>
+      <td>${prodName(o.ProdID)}</td>
+      <td>${prod}/${o.CantidadPlaneada} <span style="font-size:11px;color:var(--text3)">(${pct}%)</span></td>
+      <td>${maqName(o.MaquinaID||o['Maquina ID'])}</td><td>${o.Turno||'—'}</td>
+      <td><span class="badge ${bc}">${o.Estatus}</span></td>
+      <td style="font-family:'DM Mono',monospace;font-size:11px">${fmtFecha(o.FechaPlaneada)}</td>
+      <td style="white-space:nowrap">${nextBtns}</td>
+      <td><button class="btn btn-sm del-op-btn" data-opid="${o.OPID}" data-num="${o.NumeroOP}" style="background:#FDEAEA;color:#8A1A1A;border-color:#f0b8b8">✕ Borrar</button></td></tr>`;
+  }).join('');
+}
+
+async function cambiarEstatus(opid, nuevoEstatus){
+  const op = db.ops.find(o=>o.OPID===opid);
+  if(!op) return;
+  showGlobal(`Cambiando estatus a "${nuevoEstatus}"...`, 'inf', 0);
+  const r = await apiPost({action:'updateOPEstatus', OPID:opid, Estatus:nuevoEstatus});
+  if(r.error){ showGlobal('Error: '+r.error, 'err', 4000); return; }
+  op.Estatus = nuevoEstatus;
+  showGlobal(`✓ OP ${op.NumeroOP} → ${nuevoEstatus}`, 'ok', 2500);
+  renderOps();
+}
+
+async function borrarOP(opid, numop){
+  if(!confirm(`¿Seguro que quieres borrar la OP ${numop}? Esta acción no se puede deshacer.`)) return;
+  showGlobal(`Borrando OP ${numop}...`, 'inf', 0);
+  const r = await apiPost({action:'deleteOP', OPID:opid});
+  if(r.error){ showGlobal('Error: '+r.error, 'err', 4000); return; }
+  db.ops = db.ops.filter(o=>o.OPID!==opid);
+  showGlobal(`✓ OP ${numop} eliminada correctamente.`, 'ok', 2500);
+  renderOps();
+}
+
+async function saveOP(){
+  const num = document.getElementById('op-num').value.trim();
+  const prodid = document.getElementById('op-prod').value;
+  const cant = parseFloat(document.getElementById('op-cant').value)||0;
+  const maqid = document.getElementById('op-maq').value;
+  const turno = document.getElementById('op-turno').value;
+  const fecha = document.getElementById('op-fecha').value;
+  const lote = document.getElementById('op-lote').value;
+  const est = document.getElementById('op-est').value;
+  const notas = document.getElementById('op-notas').value;
+  if(!num||!cant){ showAlert('al-op','Completa número OP y cantidad.','err'); return; }
+  showAlert('al-op','Guardando en Google Sheets...','inf');
+  const r = await apiPost({action:'saveOP',OPID:uid(),NumeroOP:num,ProdID:prodid,CantidadPlaneada:cant,MaquinaID:maqid,Turno:turno,FechaPlaneada:fecha,Lote:lote,Estatus:est,Notas:notas,CreatedBy:'Admin',CreatedAt:nowStr()});
+  if(r.error){ showAlert('al-op','Error: '+r.error,'err'); return; }
+  showAlert('al-op','OP guardada correctamente en Google Sheets.','ok');
+  setTimeout(()=>{ toggleCard('form-op'); loadAll(); }, 1500);
+}
+
+// ── LOGIN ─────────────────────────────────────────────────────
+let currentUser = null;
+let pinBuffer = '';
+
+function pinPress(n){
+  if(pinBuffer.length >= 4) return;
+  pinBuffer += n;
+  updatePinDots();
+  if(pinBuffer.length === 4) setTimeout(doLogin, 200);
+}
+
+function pinDelete(){
+  pinBuffer = pinBuffer.slice(0,-1);
+  updatePinDots();
+  document.getElementById('login-error').textContent = '';
+}
+
+function updatePinDots(){
+  for(let i=1;i<=4;i++){
+    document.getElementById('pd'+i).classList.toggle('filled', i<=pinBuffer.length);
+  }
+}
+
+async function doLogin(){
+  document.getElementById('login-error').textContent = 'Verificando...';
+  const r = await apiPost({action:'login', PIN: pinBuffer});
+  if(r.error || !r.ok){
+    document.getElementById('login-error').textContent = 'PIN incorrecto. Intenta de nuevo.';
+    pinBuffer = '';
+    updatePinDots();
+    // shake animation
+    const box = document.querySelector('.login-box');
+    box.style.animation = 'shake .3s ease';
+    setTimeout(()=>box.style.animation='',400);
+    return;
+  }
+  currentUser = {id: r.UserID, nombre: r.Nombre, rol: r.Rol};
+  document.getElementById('login-screen').style.display = 'none';
+  document.getElementById('user-name').textContent = r.Nombre;
+  document.getElementById('user-rol').textContent = r.Rol;
+  document.getElementById('user-avatar').textContent = r.Nombre.charAt(0).toUpperCase();
+  aplicarPermisos(r.Rol);
+  loadAll();
+}
+
+function logout(){
+  if(!confirm('¿Cerrar sesión?')) return;
+  currentUser = null;
+  pinBuffer = '';
+  updatePinDots();
+  document.getElementById('login-error').textContent = '';
+  document.getElementById('login-screen').style.display = 'flex';
+}
+
+function aplicarPermisos(rol){
+  const esAdmin = rol === 'Administracion' || rol === 'Admin';
+  // Módulos solo para Admin
+  const soloAdmin = ['ops','paros'];
+  soloAdmin.forEach(id=>{
+    const nav = document.querySelector(`.nav-item[onclick*="'${id}'"]`);
+    if(nav) nav.style.display = esAdmin ? '' : 'none';
+  });
+  // Si operador, ir directo a producción
+  if(!esAdmin){
+    go('prod', document.querySelector('.nav-item[onclick*="\'prod\'"]'));
+  }
+}
+let scannedOPID = null;
+
+function openScanner(){
+  const modal = document.getElementById('scanner-modal');
+  modal.style.display = 'flex';
+  document.getElementById('scanner-status').textContent = 'Iniciando cámara...';
+  try {
+    codeReader = new ZXing.BrowserMultiFormatReader();
+    codeReader.listVideoInputDevices().then(devices => {
+      const back = devices.find(d=>d.label.toLowerCase().includes('back')||d.label.toLowerCase().includes('rear')||d.label.toLowerCase().includes('trasera'))||devices[devices.length-1];
+      document.getElementById('scanner-status').textContent = 'Cámara lista. Apunta al código...';
+      codeReader.decodeFromVideoDevice(back?.deviceId, 'scanner-video', (result, err)=>{
+        if(result){ stopScanner(); procesarCodigo(result.getText()); }
+      });
+    }).catch(err=>{ document.getElementById('scanner-status').textContent = 'Error cámara: '+err.message; });
+  } catch(e){ document.getElementById('scanner-status').textContent = 'Error: '+e.message; }
+}
+
+function stopScanner(){
+  if(codeReader){ codeReader.reset(); codeReader=null; }
+  document.getElementById('scanner-modal').style.display = 'none';
+}
+
+function procesarCodigo(code){
+  const prod = db.productos.find(p=>p.Codigo===code||p['Prod ID']===code||p.ProdID===code);
+  if(!prod){ showGlobal(`Código "${code}" no encontrado. Selecciona OP manualmente.`,'err',4000); toggleManual(); return; }
+  const prodId = prod['Prod ID']||prod.ProdID;
+  const opsActivas = db.ops.filter(o=>(o.ProdID===prodId||o['Prod ID']===prodId)&&o.Estatus!=='Terminada'&&o.Estatus!=='Cerrada');
+  if(!opsActivas.length){ showGlobal(`Producto: ${prod.Descripcion}. Sin OPs activas.`,'err',4000); toggleManual(); return; }
+  scannedOPID = opsActivas[0].OPID;
+  document.getElementById('scan-prod-name').textContent = prod.Descripcion;
+  document.getElementById('scan-op-name').textContent = `OP: ${opsActivas[0].NumeroOP} · Planeado: ${opsActivas[0].CantidadPlaneada} rollos`;
+  document.getElementById('scan-result').style.display = 'block';
+  document.getElementById('manual-select').style.display = 'none';
+  showGlobal(`✓ Producto escaneado: ${prod.Descripcion}`,'ok',2500);
+  document.getElementById('pr-cant').focus();
+}
+
+function clearScan(){ scannedOPID=null; document.getElementById('scan-result').style.display='none'; }
+function toggleManual(){ const m=document.getElementById('manual-select'); m.style.display=m.style.display==='none'?'block':'none'; }
+
+function renderProd(){
+  const s = document.getElementById('pr-op');
+  if(s) s.innerHTML = db.ops.filter(o=>o.Estatus!=='Cerrada'&&o.Estatus!=='Terminada').map(o=>`<option value="${o.OPID}">${o.NumeroOP} · ${prodName(o.ProdID||o['Prod ID'])}</option>`).join('');
+  const tb = document.getElementById('t-prod');
+  if(!db.registros.length){ tb.innerHTML='<tr><td colspan="6" class="empty-row">Sin registros aún.</td></tr>'; return; }
+  tb.innerHTML = [...db.registros].reverse().map(r=>{
+    const op = db.ops.find(o=>o.OPID===r.OPID);
+    const cant = parseFloat(op?.CantidadPlaneada)||1;
+    const pct = Math.round((parseFloat(r.CantidadProducida)||0)/cant*100);
+    const bc = pct>=100?'badge-green':pct>=70?'badge-amber':'badge-red';
+    return `<tr><td style="font-family:'DM Mono',monospace;font-size:12px">${op?.NumeroOP||r.OPID}</td><td>${prodName(op?.ProdID||op?.['Prod ID'])}</td><td>${r.CantidadProducida}</td><td>${r.Merma||0}</td><td><span class="badge ${bc}">${pct}%</span></td><td>${r.Turno||'—'}</td></tr>`;
+  }).join('');
+}
+
+async function saveProd(){
+  const opid = scannedOPID || document.getElementById('pr-op')?.value;
+  const turno = document.getElementById('pr-turno').value;
+  const cant = parseFloat(document.getElementById('pr-cant').value)||0;
+  const merma = parseFloat(document.getElementById('pr-merma').value)||0;
+  const hi = document.getElementById('pr-hi').value;
+  const hf = document.getElementById('pr-hf').value;
+  const obs = document.getElementById('pr-obs').value;
+  if(!opid){ showAlert('al-prod','Escanea un producto o selecciona una OP manualmente.','err'); return; }
+  if(!cant){ showAlert('al-prod','Captura la cantidad producida.','err'); return; }
+  const op = db.ops.find(o=>o.OPID===opid);
+  const pct = op ? Math.round(cant/(parseFloat(op.CantidadPlaneada)||1)*100) : 0;
+  showAlert('al-prod','Guardando en Google Sheets...','inf');
+  const r = await apiPost({action:'saveRegistro',RegID:uid(),OPID:opid,ProdID:op?.ProdID||op?.['Prod ID']||'',Turno:turno,OperadorID:'USR-001',MaquinaID:op?.MaquinaID||'',CantidadProducida:cant,Merma:merma,HoraInicio:hi,HoraFin:hf,Observaciones:obs,Cumplimiento:pct});
+  if(r.error){ showAlert('al-prod','Error: '+r.error,'err'); return; }
+  const prod = db.productos.find(p=>p['Prod ID']===(op?.ProdID||op?.['Prod ID'])||p.ProdID===(op?.ProdID||op?.['Prod ID']));
+  const antes = parseFloat(prod?.StockActual)||0;
+  await apiPost({action:'saveMovimiento',MovID:uid(),TipoMov:'Entrada_PT',EntidadID:op?.ProdID||op?.['Prod ID'],TipoEntidad:'PT',Cantidad:cant,StockAntes:antes,StockDespues:antes+cant,RefID:op?.NumeroOP||opid,UsuarioID:'USR-001'});
+  showAlert('al-prod','Registro guardado correctamente.','ok');
+  scannedOPID=null;
+  document.getElementById('scan-result').style.display='none';
+  document.getElementById('pr-cant').value='';
+  document.getElementById('pr-merma').value='';
+  document.getElementById('pr-obs').value='';
+  setTimeout(()=>loadAll(), 1500);
+}
+
+function renderInvMP(){
+  document.getElementById('t-invmp').innerHTML = db.materiales.map(m=>{
+    const mid = m.MatID||m['Mat ID'];
+    const s=parseFloat(m.StockActual)||0, mn=parseFloat(m.StockMinimo)||0;
+    const bc=s<=0?'badge-red':s<=mn&&mn>0?'badge-amber':'badge-green';
+    const st=s<=0?'Sin stock':s<=mn&&mn>0?'Crítico':'OK';
+    return `<tr><td style="font-family:'DM Mono',monospace;font-size:12px">${m.Codigo}</td><td>${m.Descripcion}</td><td><strong>${s}</strong></td><td>${mn}</td><td>${m.Unidad}</td><td><span class="badge ${bc}">${st}</span></td></tr>`;
+  }).join('') || '<tr><td colspan="6" class="empty-row">Sin materiales.</td></tr>';
+}
+
+function renderEntMP(){
+  const s = document.getElementById('ent-mat');
+  s.innerHTML = db.materiales.map(m=>`<option value="${m.MatID||m['Mat ID']}">${m.Descripcion}</option>`).join('');
+  const ef = document.getElementById('ent-fecha');
+  if(ef&&!ef.value) ef.value = today();
+  const tb = document.getElementById('t-ent');
+  if(!db.entradas.length){ tb.innerHTML='<tr><td colspan="5" class="empty-row">Sin entradas registradas.</td></tr>'; return; }
+  tb.innerHTML = [...db.entradas].reverse().map(e=>`<tr><td>${matName(e.MatID||e['Mat ID'])}</td><td>${e.Cantidad} kg</td><td style="font-family:'DM Mono',monospace;font-size:12px">${e.LoteProveedor||''}</td><td>${e.Proveedor||''}</td><td style="font-family:'DM Mono',monospace;font-size:12px">${e.FechaRecepcion||''}</td></tr>`).join('');
+}
+
+async function saveEnt(){
+  const matid = document.getElementById('ent-mat').value;
+  const cant = parseFloat(document.getElementById('ent-cant').value)||0;
+  const lote = document.getElementById('ent-lote').value;
+  const prov = document.getElementById('ent-prov').value;
+  const fact = document.getElementById('ent-fact').value;
+  const fecha = document.getElementById('ent-fecha').value;
+  if(!matid||!cant){ showAlert('al-ent','Selecciona material y captura cantidad.','err'); return; }
+  const mat = db.materiales.find(m=>m.MatID===matid||m['Mat ID']===matid);
+  const antes = parseFloat(mat?.StockActual)||0;
+  showAlert('al-ent','Guardando en Google Sheets...','inf');
+  const r = await apiPost({action:'saveEntradaMP',EntID:uid(),MatID:matid,Cantidad:cant,LoteProveedor:lote,Proveedor:prov,Factura:fact,FechaRecepcion:fecha,OperadorID:'USR-001',Notas:''});
+  if(r.error){ showAlert('al-ent','Error: '+r.error,'err'); return; }
+  await apiPost({action:'saveMovimiento',MovID:uid(),TipoMov:'Entrada_MP',EntidadID:matid,TipoEntidad:'MP',Cantidad:cant,StockAntes:antes,StockDespues:antes+cant,RefID:fact||lote,UsuarioID:'USR-001'});
+  showAlert('al-ent','Entrada registrada. Stock MP actualizado en Sheets.','ok');
+  document.getElementById('ent-cant').value='';
+  document.getElementById('ent-lote').value='';
+  setTimeout(()=>loadAll(), 1500);
+}
+
+function renderInvPT(){
+  document.getElementById('t-invpt').innerHTML = db.productos.map(p=>{
+    const pid = p['Prod ID']||p.ProdID;
+    const regs = db.registros.filter(r=>{ const op=db.ops.find(o=>o.OPID===r.OPID); return op?.ProdID===pid; });
+    const stock = regs.reduce((s,r)=>s+(parseFloat(r.CantidadProducida)||0),0);
+    return `<tr><td style="font-family:'DM Mono',monospace;font-size:12px">${p.Codigo}</td><td>${p.Descripcion}</td><td><strong>${stock}</strong></td><td>${p.Unidad}</td></tr>`;
+  }).join('') || '<tr><td colspan="4" class="empty-row">Sin productos.</td></tr>';
+}
+
+function renderTraz(){
+  const tb = document.getElementById('t-traz');
+  if(!db.movimientos.length){ tb.innerHTML='<tr><td colspan="7" class="empty-row">Sin movimientos aún.</td></tr>'; return; }
+  tb.innerHTML = [...db.movimientos].reverse().map(m=>{
+    const bc = m.TipoMov==='Entrada_PT'?'badge-green':m.TipoMov==='Entrada_MP'?'badge-blue':'badge-amber';
+    const nombre = matName(m.EntidadID)!==m.EntidadID ? matName(m.EntidadID) : prodName(m.EntidadID);
+    return `<tr><td style="font-family:'DM Mono',monospace;font-size:11px">${m.Timestamp||''}</td><td><span class="badge ${bc}">${m.TipoMov}</span></td><td>${nombre}</td><td>${m.Cantidad}</td><td>${m.StockAntes}</td><td>${m.StockDespues}</td><td style="font-family:'DM Mono',monospace;font-size:11px">${m.RefID||''}</td></tr>`;
+  }).join('');
+}
+
+document.getElementById('d-fecha').textContent = new Date().toLocaleDateString('es-MX',{weekday:'long',day:'numeric',month:'long',year:'numeric'});
+
+function renderConsumos(){
+  const sop = document.getElementById('con-op');
+  if(sop) sop.innerHTML = db.ops.filter(o=>o.Estatus!=='Terminada'&&o.Estatus!=='Cerrada').map(o=>`<option value="${o.OPID}">${o.NumeroOP} · ${prodName(o.ProdID||o['Prod ID'])}</option>`).join('');
+  const sm = document.getElementById('con-mat');
+  if(sm) sm.innerHTML = db.materiales.map(m=>`<option value="${m.MatID||m['Mat ID']}">${m.Descripcion} (${parseFloat(m.StockActual)||0} ${m.Unidad})</option>`).join('');
+  const tb = document.getElementById('t-consumos');
+  if(!db.consumos||!db.consumos.length){ tb.innerHTML='<tr><td colspan="5" class="empty-row">Sin consumos registrados.</td></tr>'; return; }
+  tb.innerHTML = [...db.consumos].reverse().map(c=>`<tr>
+    <td style="font-family:'DM Mono',monospace;font-size:12px">${db.ops.find(o=>o.OPID===c.OPID)?.NumeroOP||c.OPID}</td>
+    <td>${matName(c.MatID||c['Mat ID'])}</td>
+    <td>${c.Cantidad}</td>
+    <td style="font-family:'DM Mono',monospace;font-size:12px">${c.LoteMP||'—'}</td>
+    <td style="font-family:'DM Mono',monospace;font-size:11px">${fmtFecha(c.CreatedAt)}</td></tr>`).join('');
+}
+
+async function saveConsumo(){
+  const opid = document.getElementById('con-op').value;
+  const matid = document.getElementById('con-mat').value;
+  const cant = parseFloat(document.getElementById('con-cant').value)||0;
+  const lote = document.getElementById('con-lote').value;
+  if(!opid||!matid||!cant){ showAlert('al-consumo','Selecciona OP, material y cantidad.','err'); return; }
+  const mat = db.materiales.find(m=>m.MatID===matid||m['Mat ID']===matid);
+  const antes = parseFloat(mat?.StockActual)||0;
+  if(cant > antes){ showAlert('al-consumo',`Stock insuficiente. Disponible: ${antes} ${mat?.Unidad||'kg'}`, 'err'); return; }
+  showAlert('al-consumo','Guardando consumo...','inf');
+  const r = await apiPost({action:'saveConsumo', ConsumoID:uid(), OPID:opid, MatID:matid, Cantidad:cant, LoteMP:lote, OperadorID:'USR-001', CreatedAt:nowStr()});
+  if(r.error){ showAlert('al-consumo','Error: '+r.error,'err'); return; }
+  await apiPost({action:'saveMovimiento', MovID:uid(), TipoMov:'Consumo_MP', EntidadID:matid, TipoEntidad:'MP', Cantidad:cant, StockAntes:antes, StockDespues:antes-cant, RefID:db.ops.find(o=>o.OPID===opid)?.NumeroOP||opid, UsuarioID:'USR-001'});
+  showAlert('al-consumo','Consumo registrado. Stock MP actualizado.','ok');
+  document.getElementById('con-cant').value='';
+  document.getElementById('con-lote').value='';
+  setTimeout(()=>loadAll(), 1500);
+}
+
+function renderEmbarques(){
+  const sp = document.getElementById('emb-prod');
+  if(sp) sp.innerHTML = db.productos.map(p=>`<option value="${p['Prod ID']||p.ProdID}">${p.Descripcion}</option>`).join('');
+  const ef = document.getElementById('emb-fecha');
+  if(ef&&!ef.value) ef.value = today();
+  const tb = document.getElementById('t-embarques');
+  if(!db.embarques||!db.embarques.length){ tb.innerHTML='<tr><td colspan="5" class="empty-row">Sin embarques registrados.</td></tr>'; return; }
+  tb.innerHTML = [...db.embarques].reverse().map(e=>`<tr>
+    <td style="font-family:'DM Mono',monospace;font-size:12px">${e.Folio||'—'}</td>
+    <td>${e.Cliente||'—'}</td>
+    <td>${prodName(e.ProdID||e['Prod ID'])}</td>
+    <td>${e.Cantidad} rollos</td>
+    <td style="font-family:'DM Mono',monospace;font-size:11px">${fmtFecha(e.FechaEmbarque)}</td></tr>`).join('');
+}
+
+async function saveEmbarque(){
+  const folio = document.getElementById('emb-folio').value.trim();
+  const cliente = document.getElementById('emb-cliente').value.trim();
+  const prodid = document.getElementById('emb-prod').value;
+  const cant = parseFloat(document.getElementById('emb-cant').value)||0;
+  const fecha = document.getElementById('emb-fecha').value;
+  const notas = document.getElementById('emb-notas').value;
+  if(!folio||!cant||!prodid){ showAlert('al-emb','Completa folio, producto y cantidad.','err'); return; }
+  showAlert('al-emb','Guardando embarque...','inf');
+  const r = await apiPost({action:'saveEmbarque', EmbID:uid(), Folio:folio, Cliente:cliente, ProdID:prodid, Cantidad:cant, FechaEmbarque:fecha, OperadorID:'USR-001', Notas:notas, CreatedAt:nowStr()});
+  if(r.error){ showAlert('al-emb','Error: '+r.error,'err'); return; }
+  const prod = db.productos.find(p=>p['Prod ID']===prodid||p.ProdID===prodid);
+  const antes = parseFloat(prod?.StockActual)||0;
+  await apiPost({action:'saveMovimiento', MovID:uid(), TipoMov:'Salida_PT', EntidadID:prodid, TipoEntidad:'PT', Cantidad:cant, StockAntes:antes, StockDespues:Math.max(0,antes-cant), RefID:folio, UsuarioID:'USR-001'});
+  showAlert('al-emb','Embarque registrado correctamente.','ok');
+  setTimeout(()=>{ toggleCard('form-emb'); loadAll(); }, 1500);
+}
+
+function renderParos(){
+  const sm = document.getElementById('par-maq');
+  if(sm) sm.innerHTML = db.maquinas.map(m=>`<option value="${m.MaqID||m['Maq ID']}">${m.Nombre}</option>`).join('');
+  const so = document.getElementById('par-op');
+  if(so) so.innerHTML = `<option value="">Sin OP asociada</option>` + db.ops.filter(o=>o.Estatus==='En proceso').map(o=>`<option value="${o.OPID}">${o.NumeroOP}</option>`).join('');
+  const hi = document.getElementById('par-hinicio');
+  if(hi&&!hi.value){ const n=new Date(); hi.value=n.toTimeString().slice(0,5); }
+  const activos = db.paros.filter(p=>!p.Resuelto&&p.Resuelto!==true&&p.Resuelto!=='TRUE'&&p.Resuelto!==1);
+  const divActivos = document.getElementById('paros-activos');
+  if(!activos.length){
+    divActivos.innerHTML='<p style="color:var(--text3);font-size:13px;padding:8px 0">Sin paros activos.</p>';
+  } else {
+    divActivos.innerHTML = activos.map(p=>`
+      <div style="border:1px solid #fca5a5;border-radius:10px;padding:12px;margin-bottom:10px;background:#fef2f2">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+          <span style="font-weight:600;font-size:13px;color:#991b1b">${maqName(p.MaqID||p['Maq ID'])}</span>
+          <span class="badge badge-red">${p.TipoParo}</span>
+        </div>
+        <div style="font-size:12px;color:#7f1d1d;margin-bottom:8px">${p.Causa||'Sin descripción'}</div>
+        <div style="font-size:11px;color:#991b1b;margin-bottom:8px">Inicio: ${p.HoraInicio||'—'}</div>
+        <button class="btn btn-sm cerrar-paro-btn" data-paroid="${p.ParoID}" style="background:#E24B4A;color:#fff;border-color:#E24B4A;width:100%">
+          ✓ Cerrar paro
+        </button>
+      </div>`).join('');
+  }
+  const tb = document.getElementById('t-paros');
+  if(!db.paros.length){ tb.innerHTML='<tr><td colspan="8" class="empty-row">Sin paros registrados.</td></tr>'; return; }
+  tb.innerHTML = [...db.paros].reverse().map(p=>{
+    const resuelto = p.Resuelto===true||p.Resuelto==='TRUE'||p.Resuelto===1;
+    return `<tr>
+      <td>${maqName(p.MaqID||p['Maq ID'])}</td>
+      <td style="font-family:'DM Mono',monospace;font-size:11px">${db.ops.find(o=>o.OPID===p.OPID)?.NumeroOP||p.OPID||'—'}</td>
+      <td><span class="badge ${resuelto?'badge-gray':'badge-red'}">${p.TipoParo}</span></td>
+      <td style="font-size:12px">${p.Causa||'—'}</td>
+      <td style="font-family:'DM Mono',monospace;font-size:11px">${p.HoraInicio||'—'}</td>
+      <td style="font-family:'DM Mono',monospace;font-size:11px">${p.HoraFin||'—'}</td>
+      <td style="font-family:'DM Mono',monospace;font-size:12px">${p.DuracionMin?p.DuracionMin+' min':'—'}</td>
+      <td><span class="badge ${resuelto?'badge-green':'badge-red'}">${resuelto?'Cerrado':'Activo'}</span></td>
+    </tr>`;
+  }).join('');
+}
+
+async function saveParo(){
+  const maqid = document.getElementById('par-maq').value;
+  const opid = document.getElementById('par-op').value;
+  const tipo = document.getElementById('par-tipo').value;
+  const hinicio = document.getElementById('par-hinicio').value;
+  const causa = document.getElementById('par-causa').value;
+  if(!maqid||!tipo||!hinicio){ showAlert('al-paro','Selecciona máquina, tipo y hora de inicio.','err'); return; }
+  showAlert('al-paro','Registrando paro...','inf');
+  const hoy = new Date().toISOString().split('T')[0];
+  const r = await apiPost({action:'saveParo', ParoID:uid(), MaqID:maqid, OPID:opid||'', TipoParo:tipo, HoraInicio:hoy+'T'+hinicio, Causa:causa, OperadorID:'USR-001', CreatedAt:nowStr()});
+  if(r.error){ showAlert('al-paro','Error: '+r.error,'err'); return; }
+  showAlert('al-paro','Paro registrado. Se notificará al supervisor.','ok');
+  document.getElementById('par-causa').value='';
+  setTimeout(()=>loadAll(), 1500);
+}
+
+async function cerrarParo(paroid){
+  const hfin = new Date().toISOString();
+  showGlobal('Cerrando paro...','inf',0);
+  const r = await apiPost({action:'cerrarParo', ParoID:paroid, HoraFin:hfin});
+  if(r.error){ showGlobal('Error: '+r.error,'err',4000); return; }
+  showGlobal(`✓ Paro cerrado. Duración: ${r.duracion||0} minutos.`,'ok',3000);
+  setTimeout(()=>loadAll(), 1000);
+}
+
+document.addEventListener('click', function(e){
+  if(e.target.classList.contains('del-op-btn')){
+    const opid = e.target.getAttribute('data-opid');
+    const num = e.target.getAttribute('data-num');
+    borrarOP(opid, num);
+  }
+  if(e.target.classList.contains('cambiar-estatus-btn')){
+    const opid = e.target.getAttribute('data-opid');
+    const est = e.target.getAttribute('data-estatus');
+    cambiarEstatus(opid, est);
+  }
+  if(e.target.classList.contains('cerrar-paro-btn')){
+    const paroid = e.target.getAttribute('data-paroid');
+    cerrarParo(paroid);
+  }
+});
+
+document.getElementById('d-fecha').textContent = new Date().toLocaleDateString('es-MX',{weekday:'long',day:'numeric',month:'long',year:'numeric'});
+// Login requerido - loadAll se ejecuta después de PIN correcto
+</script>
+</body>
+</html>
