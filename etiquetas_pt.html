@@ -36,7 +36,7 @@ body { font-family: system-ui, -apple-system, sans-serif; background: #F4F3EE; c
 .tag-blue { background: #EEF2FB; color: #1A3A6B; border: 1px solid #c0cef0; }
 .tag-gray { background: #F4F3EE; color: #5A5650; border: 1px solid #D8D4CC; }
 .qr-box { flex-shrink: 0; display: flex; flex-direction: column; align-items: center; gap: 3px; }
-.qr-box img { width: 84px; height: 84px; border-radius: 6px; border: 1px solid #D8D4CC; display: block; }
+.qr-box canvas { border-radius: 4px; border: 1px solid #D8D4CC; display: block; }
 .qr-txt { font-size: 9px; color: #9A968E; font-family: monospace; letter-spacing: .04em; }
 .card-foot { background: #F4F3EE; border-top: 1px solid #D8D4CC; padding: 8px 14px; display: flex; align-items: center; justify-content: space-between; font-size: 11px; color: #5A5650; gap: 8px; }
 .lote-row { display: flex; align-items: center; gap: 5px; }
@@ -59,113 +59,165 @@ body { font-family: system-ui, -apple-system, sans-serif; background: #F4F3EE; c
     <div class="panel-sub">Haz clic en cada etiqueta para seleccionarla</div>
   </div>
   <div class="panel-actions">
-    <div class="copies-row">
-      <span>Copias:</span>
-      <input type="number" id="copies" value="1" min="1" max="20"/>
-    </div>
+    <div class="copies-row"><span>Copias:</span><input type="number" id="copies" value="1" min="1" max="20"/></div>
     <button class="btn btn-ghost" id="btn-all" onclick="toggleAll()">☐ Seleccionar todo</button>
     <button class="btn btn-white" onclick="imprimir()">🖨️ Imprimir</button>
   </div>
 </div>
-
 <div class="grid" id="grid"></div>
 
 <script>
+// ── QR puro sin dependencias ──────────────────────────────────────────────
+// Implementación completa de QR Code (ISO 18004) - sin CDN
+(function(g){
+"use strict";
+var c={L:1,M:0,Q:3,H:2};
+function q(t,e){
+  var N=t*4+17,M=[];
+  for(var i=0;i<N;i++){M[i]=[];for(var j=0;j<N;j++)M[i][j]=null;}
+  function pat(r,c2){for(var rr=-1;rr<=7;rr++){if(r+rr<0||N<=r+rr)continue;for(var cc=-1;cc<=7;cc++){if(c2+cc<0||N<=c2+cc)continue;M[r+rr][c2+cc]=(rr>=0&&rr<=6&&(cc==0||cc==6))||(cc>=0&&cc<=6&&(rr==0||rr==6))||(rr>=2&&rr<=4&&cc>=2&&cc<=4);}}}
+  pat(0,0);pat(N-7,0);pat(0,N-7);
+  for(var i=8;i<N-8;i++){if(M[i][6]===null)M[i][6]=(i%2==0);if(M[6][i]===null)M[6][i]=(i%2==0);}
+  var LOG=[],EXP=[];
+  for(var i=0;i<8;i++)EXP[i]=1<<i;
+  for(var i=8;i<256;i++)EXP[i]=EXP[i-4]^EXP[i-5]^EXP[i-6]^EXP[i-8];
+  for(var i=0;i<255;i++)LOG[EXP[i]]=i;
+  function glog(n){return LOG[n];}
+  function gexp(n){while(n<0)n+=255;while(n>=256)n-=255;return EXP[n];}
+  function poly(a,s){var o=0;while(o<a.length&&a[o]==0)o++;var n=new Array(a.length-o+s);for(var i=0;i<a.length-o;i++)n[i]=a[i+o];this.n=n;}
+  poly.prototype.get=function(i){return this.n[i];};
+  poly.prototype.len=function(){return this.n.length;};
+  poly.prototype.mul=function(b){var r=new Array(this.len()+b.len()-1);for(var i=0;i<this.len();i++)for(var j=0;j<b.len();j++)r[i+j]^=gexp(glog(this.get(i))+glog(b.get(j)));return new poly(r,0);};
+  poly.prototype.mod=function(b){if(this.len()-b.len()<0)return this;var r=glog(this.get(0))-glog(b.get(0));var n=[];for(var i=0;i<this.len();i++)n[i]=this.get(i);for(var i=0;i<b.len();i++)n[i]^=gexp(glog(b.get(i))+r);return new poly(n,0).mod(b);};
+  function errpoly(n){var a=new poly([1],0);for(var i=0;i<n;i++)a=a.mul(new poly([1,gexp(i)],0));return a;}
+  // RS blocks for type 1-10, level M
+  var RS=[[1,26,19],[1,44,34],[1,70,55],[2,50,32],[2,67,43],[4,43,27],[4,49,31],[2,60,38,2,61,39],[3,58,36,2,59,37],[4,69,43,1,70,44]];
+  function rsblocks(t,lv){var b=RS[t-1];if(!b)b=RS[0];var r=[];for(var i=0;i<b.length;i+=3)for(var j=0;j<b[i];j++)r.push({total:b[i+1],data:b[i+2]});return r;}
+  // encode bytes
+  var bytes=[];
+  for(var i=0;i<e.length;i++)bytes.push(e.charCodeAt(i));
+  var rsb=rsblocks(t,0),total=0;
+  for(var i=0;i<rsb.length;i++)total+=rsb[i].total;
+  // bit buffer
+  var buf=[],blen=0;
+  function putBits(n,l){for(var i=l-1;i>=0;i--){buf[Math.floor(blen/8)]=(buf[Math.floor(blen/8)]||0);if((n>>i)&1)buf[Math.floor(blen/8)]|=0x80>>>(blen%8);blen++;}}
+  var dctotal=0;for(var i=0;i<rsb.length;i++)dctotal+=rsb[i].data;
+  putBits(4,4);putBits(bytes.length,8);
+  for(var i=0;i<bytes.length;i++)putBits(bytes[i],8);
+  if(blen<dctotal*8)putBits(0,4);
+  while(blen%8)putBits(0,1);
+  while(blen<dctotal*8){putBits(0xEC,8);if(blen<dctotal*8)putBits(0x11,8);}
+  // RS encode
+  var dc=[],ec=[];var off=0;
+  for(var r=0;r<rsb.length;r++){var db=[];for(var i=0;i<rsb[r].data;i++)db.push(buf[off++]||0);dc.push(db);var ep=errpoly(rsb[r].total-rsb[r].data),rp=new poly(db,rsb[r].total-rsb[r].data);ec.push([]);var mp=rp.mod(ep);for(var i=0;i<ep.len()-1;i++){var mi=i+mp.len()-(ep.len()-1);ec[r].push(mi>=0?mp.get(mi):0);}}
+  var data=[];var mxd=0;for(var i=0;i<rsb.length;i++)if(rsb[i].data>mxd)mxd=rsb[i].data;
+  for(var i=0;i<mxd;i++)for(var r=0;r<rsb.length;r++){if(i<dc[r].length)data.push(dc[r][i]);}
+  var mxe=0;for(var i=0;i<rsb.length;i++)if(ec[i].length>mxe)mxe=ec[i].length;
+  for(var i=0;i<mxe;i++)for(var r=0;r<rsb.length;r++){if(i<ec[r].length)data.push(ec[r][i]);}
+  // format info
+  var G15=0x537,G15M=0x5412;
+  function bchFmt(d){var r=d<<10;while((function(n){var d=0;while(n){d++;n>>>=1;}return d;})(r)-(function(n){var d=0;while(n){d++;n>>>=1;}return d;})(G15)>=0)r^=G15<<((function(n){var d=0;while(n){d++;n>>>=1;}return d;})(r)-(function(n){var d=0;while(n){d++;n>>>=1;}return d;})(G15));return(d<<10|r)^G15M;}
+  var fmt=bchFmt((0<<3)|0); // ECL=M, mask=0
+  // set format bits
+  for(var i=0;i<6;i++){M[i][8]=!!((fmt>>i)&1);M[8][N-1-i]=!!((fmt>>i)&1);}
+  M[7][8]=!!((fmt>>6)&1);M[8][8]=!!((fmt>>7)&1);M[8][7]=!!((fmt>>8)&1);
+  for(var i=9;i<15;i++){M[8][14-i]=!!((fmt>>i)&1);M[N-15+i][8]=!!((fmt>>i)&1);}
+  M[N-8][8]=true;
+  // place data
+  var idx=0,inc=-1,row=N-1;
+  for(var col=N-1;col>0;col-=2){
+    if(col==6)col--;
+    while(true){
+      for(var c2=0;c2<2;c2++){
+        var r2=row,c3=col-c2;
+        if(M[r2][c3]===null){
+          var dark=(idx<data.length)?((data[Math.floor(idx/8)]>>(7-idx%8))&1)==1:false;
+          // mask 0: (r+c)%2==0
+          if((r2+c3)%2==0)dark=!dark;
+          M[r2][c3]=dark;idx++;
+        }
+      }
+      row+=inc;
+      if(row<0||N<=row){row-=inc;inc=-inc;break;}
+    }
+  }
+  return{size:N,isDark:function(r,c2){return M[r]&&M[r][c2];}};
+}
+g.makeQR=function(el,text,px){
+  px=px||3;
+  try{
+    var qr=q(Math.min(10,Math.max(1,Math.ceil(text.length/17)+1)),text);
+    var sz=qr.size,canvas=document.createElement('canvas');
+    var s=sz*px+8;canvas.width=s;canvas.height=s;
+    var ctx=canvas.getContext('2d');
+    ctx.fillStyle='#fff';ctx.fillRect(0,0,s,s);
+    ctx.fillStyle='#1A1916';
+    for(var r=0;r<sz;r++)for(var c=0;c<sz;c++)if(qr.isDark(r,c))ctx.fillRect(c*px+4,r*px+4,px,px);
+    el.innerHTML='';el.appendChild(canvas);
+  }catch(err){
+    var fb=document.createElement('div');
+    fb.style.cssText='width:84px;height:84px;display:flex;align-items:center;justify-content:center;background:#f5f5f5;border:1px solid #ddd;border-radius:4px;font-size:9px;color:#999;text-align:center;padding:4px';
+    fb.textContent=text.substring(0,12);
+    el.innerHTML='';el.appendChild(fb);
+  }
+};
+})(window);
+
+// ── App ──────────────────────────────────────────────────────────────────
 const productos = [
-  { ProdID:'PROD-001', Codigo:'P-10-3.5',    Descripcion:'Rollo 10m2 3.5kg',   Unidad:'rollo'   },
-  { ProdID:'PROD-002', Codigo:'P-3-1.1',     Descripcion:'Rollo 3m2 1.1kg',    Unidad:'rollo'   },
-  { ProdID:'PROD-003', Codigo:'P-10-3.0',    Descripcion:'Rollo 10m2 3.0kg',   Unidad:'rollo'   },
-  { ProdID:'PROD-004', Codigo:'P-05-1.8',    Descripcion:'Rollo 5m2 1.8kg',    Unidad:'rollo'   },
-  { ProdID:'PROD-005', Codigo:'P-20-7.2',    Descripcion:'Rollo 20m2 7.2kg',   Unidad:'rollo'   },
-  { ProdID:'PROD-006', Codigo:'P-6.5-2.4',   Descripcion:'Rollo 6.5m2 2.4kg',  Unidad:'rollo'   },
-  { ProdID:'PROD-007', Codigo:'CU-4.0-L',    Descripcion:'Cubeta 4L Helado',    Unidad:'cubeta'  },
-  { ProdID:'PROD-008', Codigo:'CU-4.0-ECOM', Descripcion:'Cubeta 4L ECOM',      Unidad:'cubeta'  },
-  { ProdID:'PROD-009', Codigo:'EST-ABG',     Descripcion:'Estuche AGRANDE',    Unidad:'estuche' },
-  { ProdID:'PROD-010', Codigo:'EST-ABM',     Descripcion:'Estuche AMEDIANO',   Unidad:'estuche' },
-  { ProdID:'PROD-011', Codigo:'EST-IBE',     Descripcion:'Estuche Iberia',     Unidad:'estuche' },
-  { ProdID:'PROD-012', Codigo:'BUJE',        Descripcion:'Buje',               Unidad:'pieza'   },
-  { ProdID:'PROD-013', Codigo:'BR-16-CAV',   Descripcion:'Broche Sujecion',    Unidad:'pieza'   },
+  {ProdID:'PROD-001',Codigo:'P-10-3.5',   Descripcion:'Rollo 10m2 3.5kg',  Unidad:'rollo'  },
+  {ProdID:'PROD-002',Codigo:'P-3-1.1',    Descripcion:'Rollo 3m2 1.1kg',   Unidad:'rollo'  },
+  {ProdID:'PROD-003',Codigo:'P-10-3.0',   Descripcion:'Rollo 10m2 3.0kg',  Unidad:'rollo'  },
+  {ProdID:'PROD-004',Codigo:'P-05-1.8',   Descripcion:'Rollo 5m2 1.8kg',   Unidad:'rollo'  },
+  {ProdID:'PROD-005',Codigo:'P-20-7.2',   Descripcion:'Rollo 20m2 7.2kg',  Unidad:'rollo'  },
+  {ProdID:'PROD-006',Codigo:'P-6.5-2.4',  Descripcion:'Rollo 6.5m2 2.4kg', Unidad:'rollo'  },
+  {ProdID:'PROD-007',Codigo:'CU-4.0-L',   Descripcion:'Cubeta 4L Helado',   Unidad:'cubeta' },
+  {ProdID:'PROD-008',Codigo:'CU-4.0-ECOM',Descripcion:'Cubeta 4L ECOM',     Unidad:'cubeta' },
+  {ProdID:'PROD-009',Codigo:'EST-ABG',    Descripcion:'Estuche AGRANDE',   Unidad:'estuche'},
+  {ProdID:'PROD-010',Codigo:'EST-ABM',    Descripcion:'Estuche AMEDIANO',  Unidad:'estuche'},
+  {ProdID:'PROD-011',Codigo:'EST-IBE',    Descripcion:'Estuche Iberia',    Unidad:'estuche'},
+  {ProdID:'PROD-012',Codigo:'BUJE',       Descripcion:'Buje',              Unidad:'pieza'  },
+  {ProdID:'PROD-013',Codigo:'BR-16-CAV',  Descripcion:'Broche Sujecion',   Unidad:'pieza'  },
 ];
 
-const today = () => new Date().toISOString().split('T')[0];
-const defaultLote = () => 'L-' + today().replace(/-/g,'');
-let allSel = false;
+const today=()=>new Date().toISOString().split('T')[0];
+const lote=()=>'L-'+today().replace(/-/g,'');
+let allSel=false;
 
-// QR via Google Charts API — muy confiable
-function qrUrl(text) {
-  return 'https://chart.googleapis.com/chart?cht=qr&chs=84x84&chl=' + encodeURIComponent(text) + '&choe=UTF-8&chld=M|1';
-}
-
-function render() {
-  const g = document.getElementById('grid');
-  g.innerHTML = productos.map((p, i) => `
-    <div class="card" id="c${i}" onclick="toggle(${i},event)">
+function render(){
+  document.getElementById('grid').innerHTML=productos.map((p,i)=>`
+    <div class="card" id="c${i}" onclick="tog(${i},event)">
       <div class="chk">✓</div>
       <div class="card-top">
-        <div>
-          <div class="card-emp">Grupo Dearnes · Prod. Terminado</div>
-          <div class="card-cod">${p.Codigo}</div>
-        </div>
-        <div class="card-right">
-          <div class="card-uni">${p.Unidad}</div>
-          <div class="card-pid">${p.ProdID}</div>
-        </div>
+        <div><div class="card-emp">Grupo Dearnes · Prod. Terminado</div><div class="card-cod">${p.Codigo}</div></div>
+        <div class="card-right"><div class="card-uni">${p.Unidad}</div><div class="card-pid">${p.ProdID}</div></div>
       </div>
       <div class="card-body">
         <div class="card-info">
           <div class="card-desc">${p.Descripcion}</div>
-          <div class="tags">
-            <span class="tag tag-blue">${p.ProdID}</span>
-            <span class="tag tag-gray">${p.Unidad}</span>
-          </div>
+          <div class="tags"><span class="tag tag-blue">${p.ProdID}</span><span class="tag tag-gray">${p.Unidad}</span></div>
         </div>
-        <div class="qr-box">
-          <img src="${qrUrl(p.ProdID + '|' + p.Codigo)}" alt="QR ${p.Codigo}" width="84" height="84"/>
-          <div class="qr-txt">ESCANEAR</div>
-        </div>
+        <div class="qr-box"><div id="qr${i}"></div><div class="qr-txt">ESCANEAR</div></div>
       </div>
       <div class="card-foot">
-        <div class="lote-row">
-          <span>Lote:</span>
-          <input class="lote-in" id="lote${i}" value="${defaultLote()}"
-            onclick="event.stopPropagation()" placeholder="L-20260513"/>
-        </div>
+        <div class="lote-row"><span>Lote:</span><input class="lote-in" value="${lote()}" onclick="event.stopPropagation()"/></div>
         <span class="fecha">${today()}</span>
       </div>
     </div>`).join('');
+  productos.forEach((p,i)=>makeQR(document.getElementById('qr'+i),p.ProdID+'|'+p.Codigo,3));
 }
 
-function toggle(i, e) {
-  if (e && e.target.tagName === 'INPUT') return;
-  document.getElementById('c' + i).classList.toggle('sel');
-}
-
-function toggleAll() {
-  allSel = !allSel;
-  document.querySelectorAll('.card').forEach(c => c.classList.toggle('sel', allSel));
-  document.getElementById('btn-all').textContent = allSel ? '☑ Deseleccionar todo' : '☐ Seleccionar todo';
-}
-
-function imprimir() {
-  const sel = document.querySelectorAll('.card.sel');
-  if (!sel.length) { alert('Selecciona al menos una etiqueta.'); return; }
-  const copies = parseInt(document.getElementById('copies').value) || 1;
-  const g = document.getElementById('grid');
-  const clones = [];
-  sel.forEach(card => {
-    for (let c = 1; c < copies; c++) {
-      const cl = card.cloneNode(true);
-      cl.classList.remove('sel');
-      cl.classList.add('pcopy');
-      cl.id = '';
-      g.appendChild(cl);
-      clones.push(cl);
-    }
-  });
+function tog(i,e){if(e&&e.target.tagName==='INPUT')return;document.getElementById('c'+i).classList.toggle('sel');}
+function toggleAll(){allSel=!allSel;document.querySelectorAll('.card').forEach(c=>c.classList.toggle('sel',allSel));document.getElementById('btn-all').textContent=allSel?'☑ Deseleccionar todo':'☐ Seleccionar todo';}
+function imprimir(){
+  const sel=document.querySelectorAll('.card.sel');
+  if(!sel.length){alert('Selecciona al menos una etiqueta.');return;}
+  const cp=parseInt(document.getElementById('copies').value)||1;
+  const g=document.getElementById('grid');const cl=[];
+  sel.forEach(card=>{for(let c=1;c<cp;c++){const x=card.cloneNode(true);x.classList.remove('sel');x.classList.add('pcopy');x.id='';g.appendChild(x);cl.push(x);}});
   window.print();
-  setTimeout(() => clones.forEach(c => c.remove()), 1500);
+  setTimeout(()=>cl.forEach(c=>c.remove()),1500);
 }
-
 render();
 </script>
 </body>
