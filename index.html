@@ -193,6 +193,17 @@ tbody tr:hover td { background: var(--surface2); }
 }
 .mobile-menu { display: none; align-items: center; gap: 8px; padding: 12px 16px; background: var(--surface); border-bottom: 1px solid var(--border); position: sticky; top: 0; z-index: 50; }
 .mobile-menu button { background: none; border: none; cursor: pointer; padding: 4px; color: var(--text); }
+
+/* QR OP MODAL */
+.qr-modal-overlay { display:none;position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:9998;align-items:center;justify-content:center; }
+.qr-modal-overlay.show { display:flex; }
+.qr-modal { background:#fff;border-radius:16px;padding:24px;width:min(340px,92vw);text-align:center; }
+.qr-modal-title { font-size:15px;font-weight:600;margin-bottom:4px; }
+.qr-modal-sub { font-size:12px;color:#9A968E;margin-bottom:18px;font-family:'DM Mono',monospace; }
+.qr-modal canvas { border-radius:8px;border:1px solid #E2DED6;margin-bottom:12px; }
+.qr-modal-info { font-size:11px;color:#6B6960;margin-bottom:16px;line-height:1.6; }
+.qr-modal-btns { display:flex;gap:8px;justify-content:center; }
+
 </style>
 </head>
 <body>
@@ -340,7 +351,7 @@ tbody tr:hover td { background: var(--surface2); }
   </div>
   <div class="card">
     <div class="table-wrap">
-      <table><thead><tr><th>Número OP</th><th>Producto</th><th>Avance</th><th>Máquina</th><th>Turno</th><th>Estatus</th><th>Fecha</th><th>Acción</th><th></th></tr></thead>
+      <table><thead><tr><th>Número OP</th><th>Producto</th><th>Avance</th><th>Máquina</th><th>Turno</th><th>Estatus</th><th>Fecha</th><th>Acción</th><th>QR</th></tr></thead>
       <tbody id="t-ops"></tbody></table>
     </div>
   </div>
@@ -758,7 +769,10 @@ function renderOps(){
       <td><span class="badge ${bc}">${o.Estatus}</span></td>
       <td style="font-family:'DM Mono',monospace;font-size:11px">${fmtFecha(o.FechaPlaneada)}</td>
       <td style="white-space:nowrap">${nextBtns}</td>
-      <td><button class="btn btn-sm del-op-btn" data-opid="${o.OPID}" data-num="${o.NumeroOP}" style="background:#FDEAEA;color:#8A1A1A;border-color:#f0b8b8">✕ Borrar</button></td></tr>`;
+      <td style="white-space:nowrap">
+        <button class="btn btn-sm" onclick="showOPQR('${o.OPID}','${o.NumeroOP}','${prodName(o.ProdID||o['Prod ID'])}','${o.Lote||''}')" style="background:#EEF2FB;color:#2D4A8A;border-color:#c0cef0;margin-bottom:3px">📲 QR</button>
+        <button class="btn btn-sm del-op-btn" data-opid="${o.OPID}" data-num="${o.NumeroOP}" style="background:#FDEAEA;color:#8A1A1A;border-color:#f0b8b8">✕ Borrar</button>
+      </td></tr>`;
   }).join('');
 }
 
@@ -1165,5 +1179,163 @@ document.addEventListener('click', function(e){
 document.getElementById('d-fecha').textContent = new Date().toLocaleDateString('es-MX',{weekday:'long',day:'numeric',month:'long',year:'numeric'});
 // Login requerido - loadAll se ejecuta después de PIN correcto
 </script>
+
+<!-- MODAL QR DE OP -->
+<div class="qr-modal-overlay" id="qr-op-modal">
+  <div class="qr-modal">
+    <div class="qr-modal-title" id="qr-op-title">QR de la Orden</div>
+    <div class="qr-modal-sub" id="qr-op-sub"></div>
+    <div id="qr-op-canvas"></div>
+    <div class="qr-modal-info" id="qr-op-info"></div>
+    <div class="qr-modal-btns">
+      <button class="btn" onclick="document.getElementById('qr-op-modal').classList.remove('show')">Cerrar</button>
+      <button class="btn btn-primary" onclick="printOPQR()">🖨️ Imprimir QR</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// QR Generator puro sin CDN
+function makeQRCanvas(text, size) {
+  size = size || 200;
+  // Encode as bytes
+  var bytes = [];
+  for (var i = 0; i < text.length; i++) bytes.push(text.charCodeAt(i));
+  
+  // Use type 4, level M for reliability
+  var N = 33; // type 4 = 33x33
+  var M = [];
+  for (var i = 0; i < N; i++) { M[i] = []; for (var j = 0; j < N; j++) M[i][j] = null; }
+  
+  function pat(r,c) {
+    for (var rr=-1;rr<=7;rr++) for (var cc=-1;cc<=7;cc++) {
+      if(r+rr<0||N<=r+rr||c+cc<0||N<=c+cc) continue;
+      M[r+rr][c+cc]=(rr>=0&&rr<=6&&(cc==0||cc==6))||(cc>=0&&cc<=6&&(rr==0||rr==6))||(rr>=2&&rr<=4&&cc>=2&&cc<=4);
+    }
+  }
+  pat(0,0); pat(N-7,0); pat(0,N-7);
+  // Timing
+  for(var i=8;i<N-8;i++){ if(M[i][6]===null)M[i][6]=(i%2==0); if(M[6][i]===null)M[6][i]=(i%2==0); }
+  // Alignment pattern for type 4
+  [[16,16]].forEach(function(p){ for(var r=-2;r<=2;r++) for(var c=-2;c<=2;c++) M[p[0]+r][p[1]+c]=(r==-2||r==2||c==-2||c==2||(r==0&&c==0)); });
+  
+  // GF math
+  var EXP=[],LOG=[];
+  for(var i=0;i<8;i++) EXP[i]=1<<i;
+  for(var i=8;i<256;i++) EXP[i]=EXP[i-4]^EXP[i-5]^EXP[i-6]^EXP[i-8];
+  for(var i=0;i<255;i++) LOG[EXP[i]]=i;
+  function gexp(n){while(n<0)n+=255;while(n>=256)n-=255;return EXP[n];}
+  function glog(n){return LOG[n];}
+  
+  function Poly(a,s){ var o=0;while(o<a.length&&a[o]==0)o++;this.n=new Array(a.length-o+s);for(var i=0;i<a.length-o;i++)this.n[i]=a[i+o]; }
+  Poly.prototype.get=function(i){return this.n[i]||0;};
+  Poly.prototype.len=function(){return this.n.length;};
+  Poly.prototype.mul=function(b){ var r=new Array(this.len()+b.len()-1).fill(0); for(var i=0;i<this.len();i++) for(var j=0;j<b.len();j++) r[i+j]^=gexp(glog(this.get(i))+glog(b.get(j))); return new Poly(r,0); };
+  Poly.prototype.mod=function(b){ if(this.len()-b.len()<0)return this; var r=glog(this.get(0))-glog(b.get(0)),n=this.n.slice(); for(var i=0;i<b.len();i++) n[i]^=gexp(glog(b.get(i))+r); return new Poly(n,0).mod(b); };
+  
+  function errPoly(n){ var a=new Poly([1],0); for(var i=0;i<n;i++) a=a.mul(new Poly([1,gexp(i)],0)); return a; }
+  
+  // RS blocks type 4 level M: 2 blocks of 32 total, 24 data
+  var rsBlocks=[{total:50,data:36},{total:50,data:36}];
+  var totalData=72;
+  
+  // Bit buffer
+  var buf=new Array(200).fill(0), blen=0;
+  function putBits(v,l){ for(var i=l-1;i>=0;i--){ if((v>>i)&1) buf[Math.floor(blen/8)]|=(0x80>>(blen%8)); blen++; } }
+  
+  putBits(4,4); putBits(bytes.length,8);
+  for(var i=0;i<bytes.length;i++) putBits(bytes[i],8);
+  if(blen<totalData*8) putBits(0,4);
+  while(blen%8) putBits(0,1);
+  while(blen<totalData*8){ putBits(0xEC,8); if(blen<totalData*8) putBits(0x11,8); }
+  
+  var dc=[],ec=[],off=0;
+  for(var r=0;r<rsBlocks.length;r++){
+    var db=[]; for(var i=0;i<rsBlocks[r].data;i++) db.push(buf[off++]||0);
+    dc.push(db);
+    var ep=errPoly(rsBlocks[r].total-rsBlocks[r].data);
+    var mp=new Poly(db,rsBlocks[r].total-rsBlocks[r].data).mod(ep);
+    var ecr=[];
+    for(var i=0;i<ep.len()-1;i++){ var mi=i+mp.len()-(ep.len()-1); ecr.push(mi>=0?mp.get(mi):0); }
+    ec.push(ecr);
+  }
+  
+  var data=[],mxd=0,mxe=0;
+  for(var i=0;i<rsBlocks.length;i++){ if(dc[i].length>mxd)mxd=dc[i].length; if(ec[i].length>mxe)mxe=ec[i].length; }
+  for(var i=0;i<mxd;i++) for(var r=0;r<rsBlocks.length;r++) { if(i<dc[r].length) data.push(dc[r][i]); }
+  for(var i=0;i<mxe;i++) for(var r=0;r<rsBlocks.length;r++) { if(i<ec[r].length) data.push(ec[r][i]); }
+  
+  // Format info mask 0, level M
+  var G15=0x537,G15M=0x5412;
+  function bchFmt(d){ var r=d<<10; function bits(n){var c=0;while(n){c++;n>>>=1;}return c;} while(bits(r)-bits(G15)>=0) r^=G15<<(bits(r)-bits(G15)); return(d<<10|r)^G15M; }
+  var fmt=bchFmt(0); // M=0, mask=0
+  for(var i=0;i<6;i++){ M[i][8]=!!((fmt>>i)&1); M[8][N-1-i]=!!((fmt>>i)&1); }
+  M[7][8]=!!((fmt>>6)&1); M[8][8]=!!((fmt>>7)&1); M[8][7]=!!((fmt>>8)&1);
+  for(var i=9;i<15;i++){ M[8][14-i]=!!((fmt>>i)&1); M[N-15+i][8]=!!((fmt>>i)&1); }
+  M[N-8][8]=true;
+  
+  // Place data bits
+  var idx=0,inc=-1,row=N-1;
+  for(var col=N-1;col>0;col-=2){
+    if(col==6)col--;
+    while(true){
+      for(var c=0;c<2;c++){
+        if(M[row][col-c]===null){
+          var dark=(idx<data.length*8)?((data[Math.floor(idx/8)]>>(7-idx%8))&1)==1:false;
+          if((row+(col-c))%2==0) dark=!dark; // mask 0
+          M[row][col-c]=dark; idx++;
+        }
+      }
+      row+=inc;
+      if(row<0||N<=row){ row-=inc; inc=-inc; break; }
+    }
+  }
+  
+  var canvas=document.createElement('canvas');
+  var dot=Math.floor(size/N);
+  canvas.width=canvas.height=N*dot+8;
+  var ctx=canvas.getContext('2d');
+  ctx.fillStyle='#fff'; ctx.fillRect(0,0,canvas.width,canvas.height);
+  ctx.fillStyle='#1A1916';
+  for(var r=0;r<N;r++) for(var c=0;c<N;c++) if(M[r][c]) ctx.fillRect(c*dot+4,r*dot+4,dot,dot);
+  return canvas;
+}
+
+function showOPQR(opid, numop, prod, lote) {
+  var container = document.getElementById('qr-op-canvas');
+  container.innerHTML = '';
+  var text = opid; // el QR contiene solo el OPID para que la app lo encuentre
+  try {
+    var canvas = makeQRCanvas(text, 200);
+    container.appendChild(canvas);
+  } catch(e) {
+    container.innerHTML = '<p style="color:red;font-size:12px">Error generando QR</p>';
+  }
+  document.getElementById('qr-op-title').textContent = 'QR · ' + (numop || opid);
+  document.getElementById('qr-op-sub').textContent = opid;
+  document.getElementById('qr-op-info').innerHTML = 
+    '<b>Producto:</b> ' + (prod||'—') + '<br>' +
+    '<b>Lote:</b> ' + (lote||'—') + '<br>' +
+    '<small style="color:#9A968E">Pega este QR en la máquina para registrar producción</small>';
+  document.getElementById('qr-op-modal').classList.add('show');
+  // Cerrar al hacer clic fuera
+  document.getElementById('qr-op-modal').onclick = function(e){ if(e.target===this) this.classList.remove('show'); };
+}
+
+function printOPQR() {
+  var modal = document.querySelector('.qr-modal');
+  var w = window.open('','_blank','width=400,height=500');
+  w.document.write('<html><body style="text-align:center;font-family:sans-serif;padding:20px">');
+  w.document.write('<h3>' + document.getElementById('qr-op-title').textContent + '</h3>');
+  w.document.write('<p style="font-size:11px;color:#999;font-family:monospace">' + document.getElementById('qr-op-sub').textContent + '</p>');
+  var canvas = document.querySelector('#qr-op-canvas canvas');
+  if(canvas) w.document.write('<br><img src="' + canvas.toDataURL() + '" width="200"/><br>');
+  w.document.write('<p style="font-size:12px;margin-top:10px">' + document.getElementById('qr-op-info').innerHTML + '</p>');
+  w.document.write('</body></html>');
+  w.document.close();
+  setTimeout(function(){ w.print(); }, 500);
+}
+</script>
+
 </body>
 </html>
