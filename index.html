@@ -1102,19 +1102,49 @@ function clearScan(){ scannedOPID=null; document.getElementById('scan-result').s
 let scannedEmbProdID = null;
 
 function openEmbScanner(){
-  // Reusar el modal del scanner pero con callback de embarque
-  const modal = document.getElementById('scanner-modal');
-  modal.style.display = 'flex';
-  document.getElementById('scanner-status').textContent = 'Apunta al QR de la etiqueta PT...';
+  // Crear modal propio para embarques
+  let embModal = document.getElementById('emb-scanner-modal');
+  if(!embModal){
+    embModal = document.createElement('div');
+    embModal.id = 'emb-scanner-modal';
+    embModal.style.cssText = 'display:flex;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.88);z-index:9999;flex-direction:column;align-items:center;justify-content:center';
+    embModal.innerHTML = `
+      <div style="background:#1a1a1a;border-radius:16px;padding:20px;width:90%;max-width:440px">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
+          <span style="color:#fff;font-size:15px;font-weight:600">Escanear etiqueta PT</span>
+          <button onclick="closeEmbScanner()" style="background:none;border:none;color:#aaa;font-size:22px;cursor:pointer">✕</button>
+        </div>
+        <div style="position:relative;border-radius:10px;overflow:hidden;background:#000">
+          <video id="emb-scanner-video" style="width:100%;height:260px;object-fit:cover" autoplay muted playsinline></video>
+          <div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:200px;height:200px;border:2px solid #00ff88;border-radius:12px;pointer-events:none"></div>
+          <div style="position:absolute;bottom:10px;left:0;right:0;text-align:center;color:#00ff88;font-size:12px">Apunta al QR de la etiqueta</div>
+        </div>
+        <div id="emb-scanner-status" style="color:#aaa;font-size:12px;text-align:center;margin-top:10px">Iniciando cámara...</div>
+      </div>`;
+    document.body.appendChild(embModal);
+  } else {
+    embModal.style.display = 'flex';
+  }
+  document.getElementById('emb-scanner-status').textContent = 'Iniciando cámara...';
   try {
-    codeReader = new ZXing.BrowserMultiFormatReader();
-    codeReader.listVideoInputDevices().then(devices => {
+    if(window.embCodeReader){ try{window.embCodeReader.reset();}catch(e){} }
+    window.embCodeReader = new ZXing.BrowserMultiFormatReader();
+    window.embCodeReader.listVideoInputDevices().then(devices => {
       const back = devices.find(d=>d.label.toLowerCase().includes('back')||d.label.toLowerCase().includes('rear')||d.label.toLowerCase().includes('trasera'))||devices[devices.length-1];
-      codeReader.decodeFromVideoDevice(back?.deviceId, 'scanner-video', (result, err)=>{
-        if(result){ stopScanner(); procesarCodigoEmb(result.getText()); }
+      document.getElementById('emb-scanner-status').textContent = 'Cámara lista. Apunta al QR...';
+      window.embCodeReader.decodeFromVideoDevice(back?.deviceId, 'emb-scanner-video', (result, err)=>{
+        if(result){ closeEmbScanner(); procesarCodigoEmb(result.getText()); }
       });
-    }).catch(err=>{ document.getElementById('scanner-status').textContent = 'Error: '+err.message; });
-  } catch(e){ document.getElementById('scanner-status').textContent = 'Error: '+e.message; }
+    }).catch(err=>{ document.getElementById('emb-scanner-status').textContent = 'Error cámara: '+err.message; });
+  } catch(e){ document.getElementById('emb-scanner-status').textContent = 'Error: '+e.message; }
+}
+
+function closeEmbScanner(){
+  if(window.embCodeReader){ try{window.embCodeReader.reset();}catch(e){} window.embCodeReader=null; }
+  const modal = document.getElementById('emb-scanner-modal');
+  if(modal) modal.style.display = 'none';
+  const video = document.getElementById('emb-scanner-video');
+  if(video && video.srcObject){ video.srcObject.getTracks().forEach(t=>t.stop()); video.srcObject=null; }
 }
 
 function procesarCodigoEmb(code){
