@@ -614,13 +614,42 @@ tbody tr:hover td { background: var(--surface2); }
   <div class="card" id="form-emb" style="display:none">
     <div class="card-header"><div class="card-title">Registrar embarque</div></div>
     <div id="al-emb"></div>
+
+    <!-- Producto escaneado -->
+    <div id="emb-scan-result" style="display:none;background:#e8f5ee;border:1px solid #b8dfc8;border-radius:10px;padding:12px;margin:0 18px 14px">
+      <div style="display:flex;align-items:center;gap:10px">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#1A6B4A" stroke-width="2.5"><polyline points="20,6 9,17 4,12"/></svg>
+        <div style="flex:1">
+          <div style="font-size:12px;color:#1A6B4A;font-weight:600">Producto escaneado</div>
+          <div id="emb-scan-name" style="font-size:14px;font-weight:600;color:#0f4a31"></div>
+        </div>
+        <button onclick="clearEmbScan()" style="background:none;border:none;color:#1A6B4A;cursor:pointer;font-size:18px">✕</button>
+      </div>
+    </div>
+
+    <!-- Botón escanear -->
+    <div style="padding:0 18px 14px;display:flex;gap:10px">
+      <button class="btn btn-primary" onclick="openEmbScanner()" style="flex:1;justify-content:center;padding:10px">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><line x1="14" y1="14" x2="14" y2="21"/><line x1="14" y1="14" x2="21" y2="14"/></svg>
+        Escanear etiqueta PT
+      </button>
+      <button class="btn" onclick="toggleEmbManual()" style="padding:10px 14px" title="Seleccionar manualmente">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/></svg>
+        Manual
+      </button>
+    </div>
+
+    <!-- Selector manual -->
+    <div id="emb-manual" style="display:none;padding:0 18px 14px">
+      <div class="form-group"><label>Seleccionar producto</label><select id="emb-prod"></select></div>
+    </div>
+
     <div class="form-grid">
       <div class="form-group"><label>Folio embarque</label><input id="emb-folio" placeholder="EMB-001"/></div>
       <div class="form-group"><label>Cliente / Destino</label><input id="emb-cliente" placeholder="Cliente SA de CV"/></div>
-      <div class="form-group"><label>Producto</label><select id="emb-prod"></select></div>
-      <div class="form-group"><label>Cantidad (rollos)</label><input id="emb-cant" type="number" placeholder="0"/></div>
+      <div class="form-group"><label>Cantidad</label><input id="emb-cant" type="number" placeholder="0"/></div>
       <div class="form-group"><label>Fecha embarque</label><input id="emb-fecha" type="date"/></div>
-      <div class="form-group"><label>Notas</label><input id="emb-notas" placeholder="Opcional"/></div>
+      <div class="form-group full-col"><label>Notas</label><input id="emb-notas" placeholder="Opcional"/></div>
     </div>
     <div class="btn-row">
       <button class="btn" onclick="toggleCard('form-emb')">Cancelar</button>
@@ -1068,6 +1097,59 @@ function procesarCodigo(code){
 }
 
 function clearScan(){ scannedOPID=null; document.getElementById('scan-result').style.display='none'; }
+
+// ── ESCANEO EMBARQUES ────────────────────────────────
+let scannedEmbProdID = null;
+
+function openEmbScanner(){
+  // Reusar el modal del scanner pero con callback de embarque
+  const modal = document.getElementById('scanner-modal');
+  modal.style.display = 'flex';
+  document.getElementById('scanner-status').textContent = 'Apunta al QR de la etiqueta PT...';
+  try {
+    codeReader = new ZXing.BrowserMultiFormatReader();
+    codeReader.listVideoInputDevices().then(devices => {
+      const back = devices.find(d=>d.label.toLowerCase().includes('back')||d.label.toLowerCase().includes('rear')||d.label.toLowerCase().includes('trasera'))||devices[devices.length-1];
+      codeReader.decodeFromVideoDevice(back?.deviceId, 'scanner-video', (result, err)=>{
+        if(result){ stopScanner(); procesarCodigoEmb(result.getText()); }
+      });
+    }).catch(err=>{ document.getElementById('scanner-status').textContent = 'Error: '+err.message; });
+  } catch(e){ document.getElementById('scanner-status').textContent = 'Error: '+e.message; }
+}
+
+function procesarCodigoEmb(code){
+  // QR de etiqueta PT tiene formato: PROD-001|P-10-3.5|Descripcion
+  // o puede ser directo el ProdID
+  let prodId = code;
+  if(code.includes('|')){
+    prodId = code.split('|')[0].trim();
+  }
+  const prod = db.productos.find(p=>(p['Prod ID']||p.ProdID)===prodId || p.Codigo===prodId);
+  if(!prod){
+    showGlobal(`Código "${prodId}" no encontrado en productos.`,'err',4000);
+    toggleEmbManual();
+    return;
+  }
+  scannedEmbProdID = prod['Prod ID']||prod.ProdID;
+  document.getElementById('emb-scan-name').textContent = prod.Descripcion;
+  document.getElementById('emb-scan-result').style.display = 'block';
+  document.getElementById('emb-manual').style.display = 'none';
+  // Actualizar select también
+  const sel = document.getElementById('emb-prod');
+  if(sel) sel.value = scannedEmbProdID;
+  showGlobal(`✓ Producto: ${prod.Descripcion}`,'ok',2500);
+  document.getElementById('emb-cant').focus();
+}
+
+function clearEmbScan(){
+  scannedEmbProdID = null;
+  document.getElementById('emb-scan-result').style.display = 'none';
+}
+
+function toggleEmbManual(){
+  const m = document.getElementById('emb-manual');
+  m.style.display = m.style.display==='none' ? 'block' : 'none';
+}
 function toggleManual(){ const m=document.getElementById('manual-select'); m.style.display=m.style.display==='none'?'block':'none'; }
 
 function renderProd(){
@@ -1229,7 +1311,7 @@ function renderEmbarques(){
 async function saveEmbarque(){
   const folio = document.getElementById('emb-folio').value.trim();
   const cliente = document.getElementById('emb-cliente').value.trim();
-  const prodid = document.getElementById('emb-prod').value;
+  const prodid = scannedEmbProdID || document.getElementById('emb-prod').value;
   const cant = parseFloat(document.getElementById('emb-cant').value)||0;
   console.log('Cantidad embarque:', cant);
   const fecha = document.getElementById('emb-fecha').value;
@@ -1242,6 +1324,7 @@ async function saveEmbarque(){
   const antes = parseFloat(prod?.StockActual)||0;
   await apiPost({action:'saveMovimiento', MovID:uid(), TipoMov:'Salida_PT', EntidadID:prodid, TipoEntidad:'PT', Cantidad:cant, StockAntes:antes, StockDespues:Math.max(0,antes-cant), RefID:folio, UsuarioID:'USR-001'});
   showAlert('al-emb','Embarque registrado correctamente.','ok');
+  scannedEmbProdID = null; clearEmbScan();
   setTimeout(()=>{ toggleCard('form-emb'); loadAll(); }, 1500);
 }
 
