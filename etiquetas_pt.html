@@ -36,7 +36,7 @@ body { font-family: system-ui, -apple-system, sans-serif; background: #F4F3EE; c
 .tag-blue { background: #EEF2FB; color: #1A3A6B; border: 1px solid #c0cef0; }
 .tag-gray { background: #F4F3EE; color: #5A5650; border: 1px solid #D8D4CC; }
 .qr-box { flex-shrink: 0; display: flex; flex-direction: column; align-items: center; gap: 3px; }
-.qr-box canvas { border-radius: 4px; border: 1px solid #D8D4CC; display: block; }
+.qr-box canvas, .qr-box img { border-radius: 4px; border: 1px solid #D8D4CC; display: block; }
 .qr-txt { font-size: 9px; color: #9A968E; font-family: monospace; letter-spacing: .04em; }
 .card-foot { background: #F4F3EE; border-top: 1px solid #D8D4CC; padding: 8px 14px; display: flex; align-items: center; justify-content: space-between; font-size: 11px; color: #5A5650; gap: 8px; }
 .lote-row { display: flex; align-items: center; gap: 5px; }
@@ -204,7 +204,14 @@ function render(){
         <span class="fecha">${today()}</span>
       </div>
     </div>`).join('');
-  productos.forEach((p,i)=>makeQR(document.getElementById('qr'+i),p.ProdID+'|'+p.Codigo,3));
+  productos.forEach((p,i)=>{
+    const el = document.getElementById('qr'+i);
+    if(!el) return;
+    // Usar Google Charts API - QR estándar legible por cualquier cámara
+    const data = p.ProdID; // Solo el ProdID para búsqueda exacta
+    const url = 'https://chart.googleapis.com/chart?cht=qr&chs=100x100&chl=' + encodeURIComponent(data) + '&choe=UTF-8&chld=M|1';
+    el.innerHTML = '<img src="' + url + '" width="100" height="100" style="border-radius:4px;border:1px solid #D8D4CC;display:block" alt="' + data + '"/>';
+  });
 }
 
 function tog(i,e){if(e&&e.target.tagName==='INPUT')return;document.getElementById('c'+i).classList.toggle('sel');}
