@@ -204,7 +204,15 @@ tbody tr:hover td { background: var(--surface2); }
 .qr-modal-info { font-size:11px;color:#6B6960;margin-bottom:16px;line-height:1.6; }
 .qr-modal-btns { display:flex;gap:8px;justify-content:center; }
 
+
+/* DASHBOARD MEJORADO */
+.dash-emb-row { display:flex; align-items:center; justify-content:space-between; padding:8px 16px; border-bottom:1px solid var(--border); font-size:13px; }
+.dash-emb-row:last-child { border-bottom:none; }
+.dash-paro-row { display:flex; align-items:center; gap:10px; padding:9px 16px; border-bottom:1px solid var(--border); font-size:13px; }
+.dash-paro-row:last-child { border-bottom:none; }
+
 </style>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 </head>
 <body>
 
@@ -310,13 +318,54 @@ tbody tr:hover td { background: var(--surface2); }
 <div class="page active" id="p-dash">
   <div class="page-header">
     <div><div class="page-title">Dashboard</div><div class="page-subtitle" id="d-fecha"></div></div>
+    <button class="btn" onclick="loadAll()" style="font-size:12px;padding:6px 12px">↻ Actualizar</button>
   </div>
+
+  <!-- KPIs -->
   <div class="stats-grid" id="d-stats">
     <div class="stat-card"><div class="stat-label">Cargando...</div><div class="stat-value">—</div></div>
   </div>
+
+  <!-- Fila 1: Producción por turno + OPs activas -->
+  <div class="two-col" style="margin-bottom:16px">
+    <div class="card">
+      <div class="card-header">
+        <div class="card-title">📊 Producción por turno (acumulado)</div>
+      </div>
+      <div style="padding:14px 16px">
+        <canvas id="chart-turnos" height="180"></canvas>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-header"><div class="card-title">🏭 OPs activas</div></div>
+      <div id="d-ops" style="padding:4px 6px"></div>
+    </div>
+  </div>
+
+  <!-- Fila 2: Producción por máquina + Embarques -->
+  <div class="two-col" style="margin-bottom:16px">
+    <div class="card">
+      <div class="card-header"><div class="card-title">⚙️ Producción por máquina</div></div>
+      <div style="padding:14px 16px">
+        <canvas id="chart-maquinas" height="180"></canvas>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-header"><div class="card-title">🚚 Embarques recientes</div></div>
+      <div id="d-embarques" style="padding:4px 6px"></div>
+    </div>
+  </div>
+
+  <!-- Fila 3: Semáforo MP + Paros -->
   <div class="two-col">
-    <div class="card"><div class="card-header"><div class="card-title">Órdenes activas</div></div><div id="d-ops"></div></div>
-    <div class="card"><div class="card-header"><div class="card-title">Inventario MP</div><span style="font-size:11px;color:var(--text3)">semáforo</span></div><div id="d-mp"></div></div>
+    <div class="card">
+      <div class="card-header"><div class="card-title">📦 Inventario MP</div><span style="font-size:11px;color:var(--text3)">semáforo</span></div>
+      <div id="d-mp"></div>
+    </div>
+    <div class="card">
+      <div class="card-header"><div class="card-title">⚠️ Paros activos</div></div>
+      <div id="d-paros-dash" style="padding:4px 6px"></div>
+    </div>
   </div>
 </div>
 
@@ -704,39 +753,137 @@ function maqName(id){ const m=db.maquinas.find(x=>x.MaqID===id||x['Maq ID']===id
 function matName(id){ const m=db.materiales.find(x=>x.MatID===id||x['Mat ID']===id); return m?.Descripcion||id; }
 function fmtFecha(f){ if(!f) return '—'; try{ const d=new Date(f); if(isNaN(d)) return f; return d.toLocaleDateString('es-MX',{day:'2-digit',month:'2-digit',year:'numeric'}); }catch(e){ return f; } }
 
+// Charts instances
+let chartTurnos = null, chartMaquinas = null;
+
 function renderDash(){
   document.getElementById('d-fecha').textContent = new Date().toLocaleDateString('es-MX',{weekday:'long',day:'numeric',month:'long',year:'numeric'});
+
+  // ── KPIs ──
   const totP = db.registros.reduce((s,r)=>s+(parseFloat(r.CantidadProducida)||0),0);
   const totM = db.registros.reduce((s,r)=>s+(parseFloat(r.Merma)||0),0);
   const opsA = db.ops.filter(o=>o.Estatus==='Pendiente'||o.Estatus==='En proceso').length;
   const matC = db.materiales.filter(m=>(parseFloat(m.StockActual)||0)<=(parseFloat(m.StockMinimo)||0)&&(parseFloat(m.StockMinimo)||0)>0).length;
+  const embTotal = db.embarques.reduce((s,e)=>s+(parseFloat(e.Cantidad)||0),0);
+  const parosA = db.paros.filter(p=>!p.Resuelto&&p.Resuelto!==true&&p.Resuelto!=='TRUE').length;
+  const efic = totP>0 ? Math.round((totP-totM)/totP*100) : 0;
+
   document.getElementById('d-stats').innerHTML = `
-    <div class="stat-card"><div class="stat-label">Producción total</div><div class="stat-value green">${totP}</div></div>
-    <div class="stat-card"><div class="stat-label">Merma total</div><div class="stat-value amber">${totM}</div></div>
-    <div class="stat-card"><div class="stat-label">OPs activas</div><div class="stat-value">${opsA}</div></div>
-    <div class="stat-card"><div class="stat-label">Mat. críticos</div><div class="stat-value ${matC>0?'red':''}">${matC}</div></div>`;
-  document.getElementById('d-ops').innerHTML = db.ops.length === 0
-    ? '<p style="color:var(--text3);font-size:13px;padding:8px 0">Sin órdenes. Crea la primera OP.</p>'
-    : db.ops.map(o=>{
+    <div class="stat-card"><div class="stat-label">Producción total</div><div class="stat-value green">${totP.toLocaleString('es-MX')}</div><div style="font-size:11px;color:var(--text3);margin-top:2px">unidades acumuladas</div></div>
+    <div class="stat-card"><div class="stat-label">Eficiencia</div><div class="stat-value ${efic>=90?'green':efic>=70?'amber':'red'}">${efic}%</div><div style="font-size:11px;color:var(--text3);margin-top:2px">producido vs merma</div></div>
+    <div class="stat-card"><div class="stat-label">OPs activas</div><div class="stat-value">${opsA}</div><div style="font-size:11px;color:var(--text3);margin-top:2px">en proceso / pendiente</div></div>
+    <div class="stat-card"><div class="stat-label">Embarques</div><div class="stat-value green">${embTotal.toLocaleString('es-MX')}</div><div style="font-size:11px;color:var(--text3);margin-top:2px">unidades enviadas</div></div>
+    <div class="stat-card"><div class="stat-label">Merma total</div><div class="stat-value amber">${totM.toLocaleString('es-MX')}</div><div style="font-size:11px;color:var(--text3);margin-top:2px">unidades</div></div>
+    <div class="stat-card"><div class="stat-label">Mat. críticos</div><div class="stat-value ${matC>0?'red':''}">${matC}</div><div style="font-size:11px;color:var(--text3);margin-top:2px">bajo mínimo</div></div>
+    <div class="stat-card"><div class="stat-label">Paros activos</div><div class="stat-value ${parosA>0?'red':''}">${parosA}</div><div style="font-size:11px;color:var(--text3);margin-top:2px">sin cerrar</div></div>`;
+
+  // ── OPs activas ──
+  document.getElementById('d-ops').innerHTML = db.ops.filter(o=>o.Estatus!=='Terminada'&&o.Estatus!=='Cerrada').length === 0
+    ? '<p style="color:var(--text3);font-size:13px;padding:12px 16px">Sin órdenes activas.</p>'
+    : db.ops.filter(o=>o.Estatus!=='Terminada'&&o.Estatus!=='Cerrada').map(o=>{
         const regs = db.registros.filter(r=>r.OPID===o.OPID);
         const prod = regs.reduce((s,r)=>s+(parseFloat(r.CantidadProducida)||0),0);
         const cant = parseFloat(o.CantidadPlaneada)||1;
         const pct = Math.round(prod/cant*100);
         const col = pct>=100?'var(--green)':pct>=70?'#D4851A':'var(--red)';
-        return `<div class="op-card">
+        return `<div class="op-card" style="padding:10px 16px">
           <div class="op-card-top"><span class="op-num">${o.NumeroOP}</span><span class="op-pct" style="color:${col}">${pct}%</span></div>
-          <div style="font-size:12px;color:var(--text2)">${prodName(o.ProdID)}</div>
+          <div style="font-size:12px;color:var(--text2);margin-bottom:4px">${prodName(o.ProdID||o['Prod ID'])}</div>
           <div class="progress-bar"><div class="progress-fill" style="width:${Math.min(pct,100)}%;background:${col}"></div></div>
-          <div class="op-sub"><span>${prod}/${cant} rollos</span><span>${o.Turno||''}</span><span class="badge ${o.Estatus==='Cerrada'?'badge-green':o.Estatus==='En proceso'?'badge-blue':'badge-gray'}">${o.Estatus}</span></div>
+          <div class="op-sub"><span>${prod}/${cant}</span><span>${o.Turno||''}</span><span class="badge ${o.Estatus==='En proceso'?'badge-blue':'badge-gray'}">${o.Estatus}</span></div>
         </div>`;
       }).join('');
+
+  // ── Embarques recientes ──
+  const embs = [...(db.embarques||[])].reverse().slice(0,6);
+  document.getElementById('d-embarques').innerHTML = embs.length===0
+    ? '<p style="color:var(--text3);font-size:13px;padding:12px 16px">Sin embarques.</p>'
+    : embs.map(e=>`<div class="dash-emb-row">
+        <div>
+          <div style="font-weight:600;font-size:13px">${e.Folio||'—'}</div>
+          <div style="font-size:11px;color:var(--text3)">${e.Cliente||'—'} · ${prodName(e.ProdID||e['Prod ID'])}</div>
+        </div>
+        <div style="text-align:right">
+          <div style="font-weight:600;font-family:'DM Mono',monospace">${parseFloat(e.Cantidad)||0} pz</div>
+          <div style="font-size:11px;color:var(--text3)">${fmtFecha(e.FechaEmbarque)}</div>
+        </div>
+      </div>`).join('');
+
+  // ── Paros activos ──
+  const paros = db.paros.filter(p=>!p.Resuelto&&p.Resuelto!==true&&p.Resuelto!=='TRUE');
+  document.getElementById('d-paros-dash').innerHTML = paros.length===0
+    ? '<p style="color:var(--green);font-size:13px;padding:12px 16px">✓ Sin paros activos</p>'
+    : paros.map(p=>`<div class="dash-paro-row">
+        <div class="dot dot-red"></div>
+        <div style="flex:1">
+          <div style="font-weight:600;font-size:13px">${maqName(p.MaqID||p['Maq ID'])}</div>
+          <div style="font-size:11px;color:var(--text3)">${p.TipoParo} · ${p.Causa||''}</div>
+        </div>
+        <span class="badge badge-red">Activo</span>
+      </div>`).join('');
+
+  // ── Semáforo MP ──
   document.getElementById('d-mp').innerHTML = db.materiales.length === 0
-    ? '<p style="color:var(--text3);font-size:13px">Sin materiales registrados.</p>'
+    ? '<p style="color:var(--text3);font-size:13px;padding:12px">Sin materiales.</p>'
     : db.materiales.map(m=>{
         const s=parseFloat(m.StockActual)||0, mn=parseFloat(m.StockMinimo)||0;
         const d = s<=0?'dot-red':s<=mn&&mn>0?'dot-amber':'dot-green';
         return `<div class="inv-row"><div class="dot ${d}"></div><div class="inv-row-name">${m.Descripcion}</div><div class="inv-row-num">${s} ${m.Unidad}</div></div>`;
       }).join('');
+
+  // ── Gráfica: Producción por turno ──
+  const turnos = ['Mañana','Tarde','Noche'];
+  const prodTurno = turnos.map(t=>db.registros.filter(r=>r.Turno===t).reduce((s,r)=>s+(parseFloat(r.CantidadProducida)||0),0));
+  const mermaTurno = turnos.map(t=>db.registros.filter(r=>r.Turno===t).reduce((s,r)=>s+(parseFloat(r.Merma)||0),0));
+  setTimeout(()=>{
+    const ctx1 = document.getElementById('chart-turnos');
+    if(!ctx1) return;
+    if(chartTurnos) chartTurnos.destroy();
+    chartTurnos = new Chart(ctx1, {
+      type:'bar',
+      data:{
+        labels: turnos,
+        datasets:[
+          {label:'Producido',data:prodTurno,backgroundColor:'rgba(26,107,74,.75)',borderRadius:6},
+          {label:'Merma',data:mermaTurno,backgroundColor:'rgba(138,90,10,.5)',borderRadius:6}
+        ]
+      },
+      options:{responsive:true,plugins:{legend:{position:'bottom',labels:{font:{size:11}}}},scales:{y:{beginAtZero:true,ticks:{font:{size:11}}},x:{ticks:{font:{size:11}}}}}
+    });
+  }, 100);
+
+  // ── Gráfica: Producción por máquina ──
+  const maqIds = [...new Set(db.ops.map(o=>o.MaquinaID||o['Maquina ID']).filter(Boolean))];
+  const maqLabels = maqIds.map(id=>maqName(id));
+  const maqProd = maqIds.map(id=>{
+    const ops = db.ops.filter(o=>(o.MaquinaID||o['Maquina ID'])===id);
+    return ops.reduce((s,o)=>{
+      return s + db.registros.filter(r=>r.OPID===o.OPID).reduce((s2,r)=>s2+(parseFloat(r.CantidadProducida)||0),0);
+    },0);
+  });
+  const colors = ['rgba(45,74,138,.75)','rgba(26,107,74,.75)','rgba(138,90,10,.75)','rgba(138,26,26,.75)','rgba(80,120,200,.75)'];
+  setTimeout(()=>{
+    const ctx2 = document.getElementById('chart-maquinas');
+    if(!ctx2) return;
+    if(chartMaquinas) chartMaquinas.destroy();
+    if(!maqLabels.length){
+      ctx2.parentElement.innerHTML='<p style="color:var(--text3);font-size:13px;text-align:center;padding:40px 0">Sin datos de máquinas</p>';
+      return;
+    }
+    chartMaquinas = new Chart(ctx2, {
+      type:'bar',
+      data:{
+        labels: maqLabels,
+        datasets:[{
+          label:'Producción acumulada',
+          data: maqProd,
+          backgroundColor: maqLabels.map((_,i)=>colors[i%colors.length]),
+          borderRadius:6
+        }]
+      },
+      options:{responsive:true,plugins:{legend:{display:false}},scales:{y:{beginAtZero:true,ticks:{font:{size:11}}},x:{ticks:{font:{size:11}}}}}
+    });
+  }, 150);
 }
 
 function renderOps(){
