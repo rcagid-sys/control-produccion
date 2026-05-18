@@ -1148,15 +1148,25 @@ function closeEmbScanner(){
 }
 
 function procesarCodigoEmb(code){
-  // QR de etiqueta PT tiene formato: PROD-001|P-10-3.5|Descripcion
-  // o puede ser directo el ProdID
-  let prodId = code;
-  if(code.includes('|')){
-    prodId = code.split('|')[0].trim();
+  code = (code||'').trim();
+  let prod = null;
+  // 1. Buscar completo
+  prod = db.productos.find(p=>(p['Prod ID']||p.ProdID)===code || p.Codigo===code);
+  // 2. Separar por | y buscar cada parte
+  if(!prod && code.includes('|')){
+    const parts = code.split('|').map(s=>s.trim());
+    for(const part of parts){
+      prod = db.productos.find(p=>(p['Prod ID']||p.ProdID)===part || p.Codigo===part);
+      if(prod) break;
+    }
   }
-  const prod = db.productos.find(p=>(p['Prod ID']||p.ProdID)===prodId || p.Codigo===prodId);
+  // 3. Buscar por inicio del string
   if(!prod){
-    showGlobal(`Código "${prodId}" no encontrado en productos.`,'err',4000);
+    const first = code.split('|')[0].trim();
+    prod = db.productos.find(p=>(p['Prod ID']||p.ProdID||'').startsWith(first) || (p.Codigo||'').startsWith(first));
+  }
+  if(!prod){
+    showGlobal('Código "'+code.substring(0,25)+'" no encontrado. Usa Manual.','err',5000);
     toggleEmbManual();
     return;
   }
