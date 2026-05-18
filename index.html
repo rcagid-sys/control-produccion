@@ -1166,7 +1166,11 @@ function procesarCodigoEmb(code){
     prod = db.productos.find(p=>(p['Prod ID']||p.ProdID||'').startsWith(first) || (p.Codigo||'').startsWith(first));
   }
   if(!prod){
-    showGlobal('Código "'+code.substring(0,25)+'" no encontrado. Usa Manual.','err',5000);
+    // Debug: mostrar qué hay en db.productos
+    const firstProd = db.productos[0];
+    const keys = firstProd ? Object.keys(firstProd).join(', ') : 'sin productos';
+    const firstId = firstProd ? (firstProd['Prod ID']||firstProd.ProdID||'?') : '?';
+    showGlobal('No encontrado "'+code.split('|')[0]+'" · Keys: '+keys.substring(0,60),'err',8000);
     toggleEmbManual();
     return;
   }
