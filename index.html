@@ -211,6 +211,22 @@ tbody tr:hover td { background: var(--surface2); }
 .dash-paro-row { display:flex; align-items:center; gap:10px; padding:9px 16px; border-bottom:1px solid var(--border); font-size:13px; }
 .dash-paro-row:last-child { border-bottom:none; }
 
+
+/* MODO CONTADOR */
+.counter-display {
+  display:flex;align-items:center;justify-content:center;gap:20px;
+  padding:20px;background:var(--accent);border-radius:12px;margin:0 18px 14px;color:#fff;
+}
+.counter-num {
+  font-size:64px;font-weight:700;font-family:'DM Mono',monospace;
+  letter-spacing:-.04em;line-height:1;
+}
+.counter-label { font-size:12px;opacity:.7;margin-top:4px;text-align:center; }
+.counter-prod { font-size:14px;font-weight:600;text-align:center;margin-top:6px; }
+.counter-btns { display:flex;gap:8px;justify-content:center;padding:0 18px 14px;flex-wrap:wrap; }
+.counter-scan-flash { animation: flashGreen .3s ease; }
+@keyframes flashGreen { 0%{background:var(--accent)} 50%{background:#1A6B4A} 100%{background:var(--accent)} }
+
 </style>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 </head>
@@ -615,25 +631,35 @@ tbody tr:hover td { background: var(--surface2); }
     <div class="card-header"><div class="card-title">Registrar embarque</div></div>
     <div id="al-emb"></div>
 
-    <!-- Producto escaneado -->
-    <div id="emb-scan-result" style="display:none;background:#e8f5ee;border:1px solid #b8dfc8;border-radius:10px;padding:12px;margin:0 18px 14px">
-      <div style="display:flex;align-items:center;gap:10px">
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#1A6B4A" stroke-width="2.5"><polyline points="20,6 9,17 4,12"/></svg>
-        <div style="flex:1">
-          <div style="font-size:12px;color:#1A6B4A;font-weight:600">Producto escaneado</div>
-          <div id="emb-scan-name" style="font-size:14px;font-weight:600;color:#0f4a31"></div>
+    <!-- CONTADOR DE ESCANEOS -->
+    <div id="emb-counter-wrap" style="display:none">
+      <div class="counter-display" id="emb-counter-display">
+        <div style="text-align:center">
+          <div class="counter-label">Escaneados</div>
+          <div class="counter-num" id="emb-counter-num">0</div>
+          <div class="counter-prod" id="emb-counter-prod">—</div>
         </div>
-        <button onclick="clearEmbScan()" style="background:none;border:none;color:#1A6B4A;cursor:pointer;font-size:18px">✕</button>
+      </div>
+      <div class="counter-btns">
+        <button class="btn" onclick="embContadorMenos()" style="font-size:20px;padding:8px 18px">−</button>
+        <button class="btn btn-primary" onclick="openEmbScanner()" style="flex:1;justify-content:center">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><line x1="14" y1="14" x2="14" y2="21"/><line x1="14" y1="14" x2="21" y2="14"/></svg>
+          Escanear otro
+        </button>
+        <button class="btn" onclick="embContadorMas()" style="font-size:20px;padding:8px 18px">+</button>
+      </div>
+      <div style="padding:0 18px 6px;font-size:12px;color:var(--text3);text-align:center">
+        Escanea cada rollo/pieza uno por uno. Usa + / − para corregir.
       </div>
     </div>
 
-    <!-- Botón escanear -->
-    <div style="padding:0 18px 14px;display:flex;gap:10px">
-      <button class="btn btn-primary" onclick="openEmbScanner()" style="flex:1;justify-content:center;padding:10px">
+    <!-- INICIO: Botón escanear primer producto -->
+    <div id="emb-start-wrap" style="padding:0 18px 14px;display:flex;gap:10px">
+      <button class="btn btn-primary" onclick="openEmbScanner()" style="flex:1;justify-content:center;padding:12px">
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><line x1="14" y1="14" x2="14" y2="21"/><line x1="14" y1="14" x2="21" y2="14"/></svg>
-        Escanear etiqueta PT
+        Escanear primer rollo / pieza
       </button>
-      <button class="btn" onclick="toggleEmbManual()" style="padding:10px 14px" title="Seleccionar manualmente">
+      <button class="btn" onclick="toggleEmbManual()" style="padding:12px 14px" title="Seleccionar manualmente">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/></svg>
         Manual
       </button>
@@ -642,17 +668,20 @@ tbody tr:hover td { background: var(--surface2); }
     <!-- Selector manual -->
     <div id="emb-manual" style="display:none;padding:0 18px 14px">
       <div class="form-group"><label>Seleccionar producto</label><select id="emb-prod"></select></div>
+      <div class="form-group" style="margin-top:10px"><label>Cantidad</label><input id="emb-cant-manual" type="number" placeholder="0" min="1"/></div>
+      <div style="margin-top:8px">
+        <button class="btn btn-primary btn-sm" onclick="confirmarManual()">Confirmar</button>
+      </div>
     </div>
 
-    <div class="form-grid">
+    <div class="form-grid" id="emb-form-datos" style="display:none">
       <div class="form-group"><label>Folio embarque</label><input id="emb-folio" placeholder="EMB-001"/></div>
       <div class="form-group"><label>Cliente / Destino</label><input id="emb-cliente" placeholder="Cliente SA de CV"/></div>
-      <div class="form-group"><label>Cantidad</label><input id="emb-cant" type="number" placeholder="0"/></div>
       <div class="form-group"><label>Fecha embarque</label><input id="emb-fecha" type="date"/></div>
       <div class="form-group full-col"><label>Notas</label><input id="emb-notas" placeholder="Opcional"/></div>
     </div>
-    <div class="btn-row">
-      <button class="btn" onclick="toggleCard('form-emb')">Cancelar</button>
+    <div class="btn-row" id="emb-btn-guardar" style="display:none">
+      <button class="btn" onclick="resetEmbarque()">Cancelar</button>
       <button class="btn btn-primary" onclick="saveEmbarque()">
         <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20,6 9,17 4,12"/></svg>Guardar embarque
       </button>
@@ -1100,6 +1129,8 @@ function clearScan(){ scannedOPID=null; document.getElementById('scan-result').s
 
 // ── ESCANEO EMBARQUES ────────────────────────────────
 let scannedEmbProdID = null;
+let embContador = 0;
+let embContadorProdID = null;
 
 function openEmbScanner(){
   // Crear modal propio para embarques
@@ -1170,15 +1201,64 @@ function procesarCodigoEmb(code){
     toggleEmbManual();
     return;
   }
-  scannedEmbProdID = prod['Prod ID']||prod.ProdID;
-  document.getElementById('emb-scan-name').textContent = prod.Descripcion;
-  document.getElementById('emb-scan-result').style.display = 'block';
-  document.getElementById('emb-manual').style.display = 'none';
-  // Actualizar select también
+  const pid = prod['Prod ID']||prod.ProdID;
+  scannedEmbProdID = pid;
+  embContadorProdID = pid;
+  embContador++;
+  // Mostrar contador
+  document.getElementById('emb-start-wrap').style.display = 'none';
+  document.getElementById('emb-counter-wrap').style.display = 'block';
+  document.getElementById('emb-form-datos').style.display = 'grid';
+  document.getElementById('emb-btn-guardar').style.display = 'flex';
+  document.getElementById('emb-counter-num').textContent = embContador;
+  document.getElementById('emb-counter-prod').textContent = prod.Descripcion;
+  // Flash verde
+  const disp = document.getElementById('emb-counter-display');
+  disp.classList.add('counter-scan-flash');
+  setTimeout(()=>disp.classList.remove('counter-scan-flash'), 350);
+  showGlobal('✓ +1 ' + prod.Descripcion + ' · Total: ' + embContador,'ok',1500);
+  // Actualizar select
   const sel = document.getElementById('emb-prod');
-  if(sel) sel.value = scannedEmbProdID;
-  showGlobal(`✓ Producto: ${prod.Descripcion}`,'ok',2500);
-  document.getElementById('emb-cant').focus();
+  if(sel) sel.value = pid;
+}
+
+function embContadorMas(){
+  if(!embContadorProdID){ showGlobal('Escanea primero un producto.','err',2000); return; }
+  embContador++;
+  document.getElementById('emb-counter-num').textContent = embContador;
+  scannedEmbProdID = embContadorProdID;
+}
+
+function embContadorMenos(){
+  if(embContador > 0) embContador--;
+  document.getElementById('emb-counter-num').textContent = embContador;
+}
+
+function confirmarManual(){
+  const pid = document.getElementById('emb-prod').value;
+  const cant = parseInt(document.getElementById('emb-cant-manual').value)||0;
+  if(!pid||!cant){ showGlobal('Selecciona producto y cantidad.','err',2000); return; }
+  scannedEmbProdID = pid;
+  embContadorProdID = pid;
+  embContador = cant;
+  const prod = db.productos.find(p=>(p['Prod ID']||p.ProdID)===pid);
+  document.getElementById('emb-start-wrap').style.display = 'none';
+  document.getElementById('emb-manual').style.display = 'none';
+  document.getElementById('emb-counter-wrap').style.display = 'block';
+  document.getElementById('emb-form-datos').style.display = 'grid';
+  document.getElementById('emb-btn-guardar').style.display = 'flex';
+  document.getElementById('emb-counter-num').textContent = embContador;
+  document.getElementById('emb-counter-prod').textContent = prod?.Descripcion||pid;
+}
+
+function resetEmbarque(){
+  embContador = 0; embContadorProdID = null; scannedEmbProdID = null;
+  document.getElementById('emb-start-wrap').style.display = 'flex';
+  document.getElementById('emb-counter-wrap').style.display = 'none';
+  document.getElementById('emb-form-datos').style.display = 'none';
+  document.getElementById('emb-btn-guardar').style.display = 'none';
+  document.getElementById('emb-manual').style.display = 'none';
+  toggleCard('form-emb');
 }
 
 function clearEmbScan(){
@@ -1352,7 +1432,7 @@ async function saveEmbarque(){
   const folio = document.getElementById('emb-folio').value.trim();
   const cliente = document.getElementById('emb-cliente').value.trim();
   const prodid = scannedEmbProdID || document.getElementById('emb-prod').value;
-  const cant = parseFloat(document.getElementById('emb-cant').value)||0;
+  const cant = embContador > 0 ? embContador : parseFloat(document.getElementById('emb-cant-manual')?.value)||0;
   console.log('Cantidad embarque:', cant);
   const fecha = document.getElementById('emb-fecha').value;
   const notas = document.getElementById('emb-notas').value;
@@ -1364,8 +1444,9 @@ async function saveEmbarque(){
   const antes = parseFloat(prod?.StockActual)||0;
   await apiPost({action:'saveMovimiento', MovID:uid(), TipoMov:'Salida_PT', EntidadID:prodid, TipoEntidad:'PT', Cantidad:cant, StockAntes:antes, StockDespues:Math.max(0,antes-cant), RefID:folio, UsuarioID:'USR-001'});
   showAlert('al-emb','Embarque registrado correctamente.','ok');
-  scannedEmbProdID = null; clearEmbScan();
-  setTimeout(()=>{ toggleCard('form-emb'); loadAll(); }, 1500);
+  scannedEmbProdID = null; embContador = 0; embContadorProdID = null;
+  resetEmbarque();
+  setTimeout(()=>{ loadAll(); }, 1500);
 }
 
 function renderParos(){
