@@ -1356,12 +1356,15 @@ async function saveEnt(){
 function renderInvPT(){
   document.getElementById('t-invpt').innerHTML = db.productos.map(p=>{
     const pid = p['Prod ID']||p.ProdID;
-    // Sumar producción
-    const regs = db.registros.filter(r=>{ const op=db.ops.find(o=>o.OPID===r.OPID); return op?.ProdID===pid; });
+    // Leer StockActual directo de Sheets
+    const stockSheets = parseFloat(p.StockActual)||0;
+    // Sumar producción registrada en la app
+    const regs = db.registros.filter(r=>{ const op=db.ops.find(o=>o.OPID===r.OPID); return op?.ProdID===pid||op?.['Prod ID']===pid; });
     const producido = regs.reduce((s,r)=>s+(parseFloat(r.CantidadProducida)||0),0);
     // Restar embarques
-    const embarcado = db.embarques.filter(e=>(e.ProdID===pid)||e['Prod ID']===pid).reduce((s,e)=>s+(parseFloat(e.Cantidad)||0),0);
-    const stock = Math.max(0, producido - embarcado);
+    const embarcado = db.embarques.filter(e=>(e.ProdID===pid||e['Prod ID']===pid)).reduce((s,e)=>s+(parseFloat(e.Cantidad)||0),0);
+    // Stock total = inventario inicial de Sheets + producción app - embarques app
+    const stock = Math.max(0, stockSheets + producido - embarcado);
     const bc = stock<=0?'color:var(--red)':stock<10?'color:var(--amber)':'color:var(--green)';
     return `<tr><td style="font-family:'DM Mono',monospace;font-size:12px">${p.Codigo}</td><td>${p.Descripcion}</td><td><strong style="${bc}">${stock}</strong></td><td>${p.Unidad}</td></tr>`;
   }).join('') || '<tr><td colspan="4" class="empty-row">Sin productos.</td></tr>';
