@@ -778,7 +778,7 @@ function render(id){
 }
 
 function prodName(id){ const p=db.productos.find(x=>x['Prod ID']===id||x.ProdID===id); return p?.Descripcion||id; }
-function maqName(id){ const m=db.maquinas.find(x=>x.MaqID===id||x['Maq ID']===id||x.Nombre===id); return m?.Nombre||id||'—'; }
+function maqName(id){ const m=db.maquinas.find(x=>x.MaqID===id||x['Maq ID']===id||x['Maquina ID']===id||x.Nombre===id); return m?.Nombre||id||'—'; }
 function matName(id){ const m=db.materiales.find(x=>x.MatID===id||x['Mat ID']===id); return m?.Descripcion||id; }
 function fmtFecha(f){ if(!f) return '—'; try{ const d=new Date(f); if(isNaN(d)) return f; return d.toLocaleDateString('es-MX',{day:'2-digit',month:'2-digit',year:'numeric'}); }catch(e){ return f; } }
 
@@ -845,7 +845,7 @@ function renderDash(){
     : paros.map(p=>`<div class="dash-paro-row">
         <div class="dot dot-red"></div>
         <div style="flex:1">
-          <div style="font-weight:600;font-size:13px">${maqName(p.MaqID||p['Maq ID'])}</div>
+          <div style="font-weight:600;font-size:13px">${maqName(p.MaqID||p['Maq ID']||p['Maquina ID'])}</div>
           <div style="font-size:11px;color:var(--text3)">${p.TipoParo} · ${p.Causa||''}</div>
         </div>
         <span class="badge badge-red">Activo</span>
@@ -882,10 +882,10 @@ function renderDash(){
   }, 100);
 
   // ── Gráfica: Producción por máquina ──
-  const maqIds = [...new Set(db.ops.map(o=>o.MaquinaID||o['Maquina ID']).filter(Boolean))];
+  const maqIds = [...new Set(db.ops.map(o=>o.MaquinaID||o['Maquina ID']||o['MaquinaID']).filter(Boolean))];
   const maqLabels = maqIds.map(id=>maqName(id));
   const maqProd = maqIds.map(id=>{
-    const ops = db.ops.filter(o=>(o.MaquinaID||o['Maquina ID'])===id);
+    const ops = db.ops.filter(o=>(o.MaquinaID||o['Maquina ID']||o['MaquinaID'])===id);
     return ops.reduce((s,o)=>{
       return s + db.registros.filter(r=>r.OPID===o.OPID).reduce((s2,r)=>s2+(parseFloat(r.CantidadProducida)||0),0);
     },0);
@@ -919,7 +919,7 @@ function renderOps(){
   const sp = document.getElementById('op-prod');
   if(sp) sp.innerHTML = db.productos.map(p=>`<option value="${p['Prod ID']||p.ProdID}">${p.Descripcion}</option>`).join('');
   const sm = document.getElementById('op-maq');
-  if(sm) sm.innerHTML = db.maquinas.map(m=>`<option value="${m.MaqID}">${m.Nombre}</option>`).join('');
+  if(sm) sm.innerHTML = db.maquinas.map(m=>`<option value="${m['Maquina ID']||m.MaqID||m['Maq ID']}">${m.Nombre}</option>`).join('');
   const of = document.getElementById('op-fecha');
   if(of&&!of.value) of.value = today();
   const tb = document.getElementById('t-ops');
@@ -941,7 +941,7 @@ function renderOps(){
       <td><strong style="font-family:'DM Mono',monospace;font-size:12px">${o.NumeroOP}</strong></td>
       <td>${prodName(o.ProdID)}</td>
       <td>${prod}/${o.CantidadPlaneada} <span style="font-size:11px;color:var(--text3)">(${pct}%)</span></td>
-      <td>${maqName(o.MaquinaID||o['Maquina ID'])}</td><td>${o.Turno||'—'}</td>
+      <td>${maqName(o.MaquinaID||o['Maquina ID']||o['MaquinaID'])}</td><td>${o.Turno||'—'}</td>
       <td><span class="badge ${bc}">${o.Estatus}</span></td>
       <td style="font-family:'DM Mono',monospace;font-size:11px">${fmtFecha(o.FechaPlaneada)}</td>
       <td style="white-space:nowrap">${nextBtns}</td>
@@ -1370,7 +1370,7 @@ async function saveEmbarque(){
 
 function renderParos(){
   const sm = document.getElementById('par-maq');
-  if(sm) sm.innerHTML = db.maquinas.map(m=>`<option value="${m.MaqID||m['Maq ID']}">${m.Nombre}</option>`).join('');
+  if(sm) sm.innerHTML = db.maquinas.map(m=>`<option value="${m['Maquina ID']||m.MaqID||m['Maq ID']}">${m.Nombre}</option>`).join('');
   const so = document.getElementById('par-op');
   if(so) so.innerHTML = `<option value="">Sin OP asociada</option>` + db.ops.filter(o=>o.Estatus==='En proceso').map(o=>`<option value="${o.OPID}">${o.NumeroOP}</option>`).join('');
   const hi = document.getElementById('par-hinicio');
@@ -1383,7 +1383,7 @@ function renderParos(){
     divActivos.innerHTML = activos.map(p=>`
       <div style="border:1px solid #fca5a5;border-radius:10px;padding:12px;margin-bottom:10px;background:#fef2f2">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
-          <span style="font-weight:600;font-size:13px;color:#991b1b">${maqName(p.MaqID||p['Maq ID'])}</span>
+          <span style="font-weight:600;font-size:13px;color:#991b1b">${maqName(p.MaqID||p['Maq ID']||p['Maquina ID'])}</span>
           <span class="badge badge-red">${p.TipoParo}</span>
         </div>
         <div style="font-size:12px;color:#7f1d1d;margin-bottom:8px">${p.Causa||'Sin descripción'}</div>
@@ -1398,7 +1398,7 @@ function renderParos(){
   tb.innerHTML = [...db.paros].reverse().map(p=>{
     const resuelto = p.Resuelto===true||p.Resuelto==='TRUE'||p.Resuelto===1;
     return `<tr>
-      <td>${maqName(p.MaqID||p['Maq ID'])}</td>
+      <td>${maqName(p.MaqID||p['Maq ID']||p['Maquina ID'])}</td>
       <td style="font-family:'DM Mono',monospace;font-size:11px">${db.ops.find(o=>o.OPID===p.OPID)?.NumeroOP||p.OPID||'—'}</td>
       <td><span class="badge ${resuelto?'badge-gray':'badge-red'}">${p.TipoParo}</span></td>
       <td style="font-size:12px">${p.Causa||'—'}</td>
