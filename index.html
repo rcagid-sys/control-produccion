@@ -1931,10 +1931,8 @@ function generarReporte() {
 function exportarCSV() {
   const desde=document.getElementById('rep-desde').value, hasta=document.getElementById('rep-hasta').value;
   const regs=filtrarPorFecha(db.registros,'CreatedAt');
-  let csv='Fecha,OP,Producto,Maquina,Turno,Producido,Merma,Eficiencia
-';
-  regs.forEach(r=>{const op=db.ops.find(o=>o.OPID===r.OPID);const c=parseFloat(r.CantidadProducida)||0;const m=parseFloat(r.Merma)||0;csv+=[parseFecha(r.CreatedAt),op?.NumeroOP||r.OPID,prodName(op?.ProdID||op?.['Prod ID']),maqName(op?.MaquinaID||op?.['Maquina ID']),r.Turno||'',c,m,c>0?Math.round((c-m)/c*100)+'%':'0%'].join(',')+'
-';});
+  let csv='Fecha,OP,Producto,Maquina,Turno,Producido,Merma,Eficiencia\n';
+  regs.forEach(r=>{const op=db.ops.find(o=>o.OPID===r.OPID);const c=parseFloat(r.CantidadProducida)||0;const m=parseFloat(r.Merma)||0;csv+=[parseFecha(r.CreatedAt),op?.NumeroOP||r.OPID,prodName(op?.ProdID||op?.['Prod ID']),maqName(op?.MaquinaID||op?.['Maquina ID']),r.Turno||'',c,m,c>0?Math.round((c-m)/c*100)+'%':'0%'].join(',')+'\n';});
   const blob=new Blob([csv],{type:'text/csv;charset=utf-8;'});
   const url=URL.createObjectURL(blob);
   const a=document.createElement('a');
