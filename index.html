@@ -1833,11 +1833,19 @@ function destroyChart(id) { if(repCharts[id]){try{repCharts[id].destroy();}catch
 
 function generarReporte() {
   initRepFiltros();
+  // Verificar que hay datos
+  if(!db.registros || !db.registros.length) {
+    // intentar mostrar al menos los KPIs en 0
+    console.log('Sin registros aún. Total registros:', db.registros?.length);
+  }
   const desde = document.getElementById('rep-desde').value;
   const hasta = document.getElementById('rep-hasta').value;
   const turno = document.getElementById('rep-turno').value;
   const maqFil = document.getElementById('rep-maq').value;
   document.getElementById('rep-rango-label').textContent = (desde||'inicio')+' → '+(hasta||'hoy')+(turno?' · '+turno:'')+(maqFil?' · '+maqName(maqFil):'');
+  console.log('Registros:', db.registros.length, 'Paros:', db.paros.length, 'Consumos:', db.consumos.length, 'Embarques:', db.embarques.length);
+  // Muestra primer registro para debug
+  if(db.registros.length) console.log('Primer registro CreatedAt:', db.registros[0].CreatedAt, '-> parseFecha:', parseFecha(db.registros[0].CreatedAt));
 
   const regs = filtrarPorFecha(db.registros, 'CreatedAt').filter(r => {
     if(!maqFil) return true;
