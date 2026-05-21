@@ -229,16 +229,9 @@ tbody tr:hover td { background: var(--surface2); }
 
 
 /* REPORTES */
-.rep-filters {
-  display:flex;align-items:center;gap:10px;flex-wrap:wrap;
-  padding:14px 16px;border-bottom:1px solid var(--border);
-}
+.rep-filters { display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:14px 16px;border-bottom:1px solid var(--border); }
 .rep-filters label { font-size:11px;font-weight:500;color:var(--text2);text-transform:uppercase;letter-spacing:.04em; }
-.rep-filters input, .rep-filters select {
-  padding:6px 10px;border:1px solid var(--border2);border-radius:var(--radius);
-  font-size:12px;background:var(--surface);color:var(--text);outline:none;font-family:'DM Sans',sans-serif;
-}
-.rep-filters input:focus, .rep-filters select:focus { border-color:var(--accent); }
+.rep-filters input, .rep-filters select { padding:6px 10px;border:1px solid var(--border2);border-radius:var(--radius);font-size:12px;background:var(--surface);color:var(--text);outline:none;font-family:'DM Sans',sans-serif; }
 .rep-kpi-grid { display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:10px;margin-bottom:16px; }
 .rep-kpi { background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-lg);padding:14px;text-align:center; }
 .rep-kpi-val { font-size:26px;font-weight:700;font-family:'DM Mono',monospace;letter-spacing:-.03em; }
@@ -252,7 +245,7 @@ tbody tr:hover td { background: var(--surface2); }
 .rep-table td strong { color:var(--text); }
 .chart-container { position:relative;height:220px;margin-bottom:16px; }
 @media print {
-  .sidebar, .mobile-menu, .rep-filters .btn, #global-bar { display:none!important; }
+  .sidebar, .mobile-menu, #global-bar { display:none!important; }
   .main { margin-left:0!important;padding:16px!important; }
   .page { display:block!important; }
   .page:not(#p-reportes) { display:none!important; }
@@ -741,45 +734,23 @@ tbody tr:hover td { background: var(--surface2); }
   </div>
 </div>
 
+
 <!-- REPORTES -->
 <div class="page" id="p-reportes">
   <div class="page-header">
-    <div>
-      <div class="page-title">Reportes</div>
-      <div class="page-subtitle" id="rep-rango-label">Selecciona un período</div>
-    </div>
+    <div><div class="page-title">Reportes</div><div class="page-subtitle" id="rep-rango-label">Selecciona un período</div></div>
     <div style="display:flex;gap:8px;flex-wrap:wrap">
       <button class="btn" onclick="window.print()" style="font-size:12px">🖨️ Imprimir</button>
       <button class="btn btn-primary" onclick="exportarCSV()" style="font-size:12px">⬇ Descargar CSV</button>
     </div>
   </div>
-
-  <!-- FILTROS -->
   <div class="card" style="padding:0;margin-bottom:16px">
     <div class="rep-filters">
-      <div style="display:flex;flex-direction:column;gap:3px">
-        <label>Desde</label>
-        <input type="date" id="rep-desde"/>
-      </div>
-      <div style="display:flex;flex-direction:column;gap:3px">
-        <label>Hasta</label>
-        <input type="date" id="rep-hasta"/>
-      </div>
-      <div style="display:flex;flex-direction:column;gap:3px">
-        <label>Máquina</label>
-        <select id="rep-maq"><option value="">Todas</option></select>
-      </div>
-      <div style="display:flex;flex-direction:column;gap:3px">
-        <label>Turno</label>
-        <select id="rep-turno">
-          <option value="">Todos</option>
-          <option>Mañana</option><option>Tarde</option><option>Noche</option>
-        </select>
-      </div>
-      <button class="btn btn-primary" onclick="generarReporte()" style="margin-top:16px;font-size:12px">
-        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-        Generar reporte
-      </button>
+      <div style="display:flex;flex-direction:column;gap:3px"><label>Desde</label><input type="date" id="rep-desde"/></div>
+      <div style="display:flex;flex-direction:column;gap:3px"><label>Hasta</label><input type="date" id="rep-hasta"/></div>
+      <div style="display:flex;flex-direction:column;gap:3px"><label>Máquina</label><select id="rep-maq"><option value="">Todas</option></select></div>
+      <div style="display:flex;flex-direction:column;gap:3px"><label>Turno</label><select id="rep-turno"><option value="">Todos</option><option>Mañana</option><option>Tarde</option><option>Noche</option></select></div>
+      <button class="btn btn-primary" onclick="generarReporte()" style="margin-top:16px;font-size:12px">🔍 Generar reporte</button>
       <div style="display:flex;gap:6px;margin-top:16px;flex-wrap:wrap">
         <button class="btn" onclick="setRango(7)" style="font-size:11px">7 días</button>
         <button class="btn" onclick="setRango(15)" style="font-size:11px">15 días</button>
@@ -788,82 +759,36 @@ tbody tr:hover td { background: var(--surface2); }
       </div>
     </div>
   </div>
-
-  <!-- KPIs -->
-  <div class="rep-kpi-grid" id="rep-kpis">
-    <div class="rep-kpi"><div class="rep-kpi-val" style="color:var(--green)">—</div><div class="rep-kpi-lbl">Producción total</div></div>
-  </div>
-
-  <!-- FILA 1: Producción por día + por turno -->
+  <div class="rep-kpi-grid" id="rep-kpis"><div class="rep-kpi"><div class="rep-kpi-val">—</div><div class="rep-kpi-lbl">Cargando...</div></div></div>
   <div class="two-col" style="margin-bottom:16px">
-    <div class="card">
-      <div class="rep-section-title">📈 Producción por día</div>
-      <div class="chart-container"><canvas id="chart-rep-dias"></canvas></div>
-    </div>
-    <div class="card">
-      <div class="rep-section-title">🔄 Producción por turno</div>
-      <div class="chart-container"><canvas id="chart-rep-turnos"></canvas></div>
-    </div>
+    <div class="card"><div class="rep-section-title">📈 Producción por día</div><div class="chart-container"><canvas id="chart-rep-dias"></canvas></div></div>
+    <div class="card"><div class="rep-section-title">🔄 Producción por turno</div><div class="chart-container"><canvas id="chart-rep-turnos"></canvas></div></div>
   </div>
-
-  <!-- FILA 2: Paros + Consumo MP -->
   <div class="two-col" style="margin-bottom:16px">
-    <div class="card">
-      <div class="rep-section-title">⚠️ Paros por tipo</div>
-      <div class="chart-container"><canvas id="chart-rep-paros"></canvas></div>
-    </div>
-    <div class="card">
-      <div class="rep-section-title">📦 Consumo MP por material</div>
-      <div class="chart-container"><canvas id="chart-rep-mp"></canvas></div>
-    </div>
+    <div class="card"><div class="rep-section-title">⚠️ Paros por tipo</div><div class="chart-container"><canvas id="chart-rep-paros"></canvas></div></div>
+    <div class="card"><div class="rep-section-title">📦 Consumo MP</div><div class="chart-container"><canvas id="chart-rep-mp"></canvas></div></div>
   </div>
-
-  <!-- FILA 3: Embarques + Eficiencia -->
   <div class="two-col" style="margin-bottom:16px">
-    <div class="card">
-      <div class="rep-section-title">🚚 Embarques por producto</div>
-      <div class="chart-container"><canvas id="chart-rep-emb"></canvas></div>
-    </div>
-    <div class="card">
-      <div class="rep-section-title">⚙️ Eficiencia por máquina</div>
-      <div class="chart-container"><canvas id="chart-rep-efic"></canvas></div>
-    </div>
+    <div class="card"><div class="rep-section-title">🚚 Embarques por producto</div><div class="chart-container"><canvas id="chart-rep-emb"></canvas></div></div>
+    <div class="card"><div class="rep-section-title">⚙️ Eficiencia por máquina</div><div class="chart-container"><canvas id="chart-rep-efic"></canvas></div></div>
   </div>
-
-  <!-- TABLAS DETALLE -->
   <div class="card" style="margin-bottom:16px">
     <div class="rep-section-title">📋 Detalle de producción</div>
-    <div class="table-wrap">
-      <table class="rep-table"><thead><tr><th>Fecha</th><th>OP</th><th>Producto</th><th>Máquina</th><th>Turno</th><th>Producido</th><th>Merma</th><th>Eficiencia</th></tr></thead>
-      <tbody id="rep-t-prod"></tbody></table>
-    </div>
+    <div class="table-wrap"><table class="rep-table"><thead><tr><th>Fecha</th><th>OP</th><th>Producto</th><th>Máquina</th><th>Turno</th><th>Producido</th><th>Merma</th><th>Eficiencia</th></tr></thead><tbody id="rep-t-prod"></tbody></table></div>
   </div>
-
   <div class="card" style="margin-bottom:16px">
     <div class="rep-section-title">⚠️ Detalle de paros</div>
-    <div class="table-wrap">
-      <table class="rep-table"><thead><tr><th>Fecha</th><th>Máquina</th><th>OP</th><th>Tipo</th><th>Causa</th><th>Duración</th></tr></thead>
-      <tbody id="rep-t-paros"></tbody></table>
-    </div>
+    <div class="table-wrap"><table class="rep-table"><thead><tr><th>Fecha</th><th>Máquina</th><th>OP</th><th>Tipo</th><th>Causa</th><th>Duración</th></tr></thead><tbody id="rep-t-paros"></tbody></table></div>
   </div>
-
   <div class="card" style="margin-bottom:16px">
     <div class="rep-section-title">📦 Detalle de consumos MP</div>
-    <div class="table-wrap">
-      <table class="rep-table"><thead><tr><th>Fecha</th><th>OP</th><th>Material</th><th>Cantidad</th></tr></thead>
-      <tbody id="rep-t-mp"></tbody></table>
-    </div>
+    <div class="table-wrap"><table class="rep-table"><thead><tr><th>Fecha</th><th>OP</th><th>Material</th><th>Cantidad</th></tr></thead><tbody id="rep-t-mp"></tbody></table></div>
   </div>
-
   <div class="card">
     <div class="rep-section-title">🚚 Detalle de embarques</div>
-    <div class="table-wrap">
-      <table class="rep-table"><thead><tr><th>Fecha</th><th>Folio</th><th>Cliente</th><th>Producto</th><th>Cantidad</th></tr></thead>
-      <tbody id="rep-t-emb"></tbody></table>
-    </div>
+    <div class="table-wrap"><table class="rep-table"><thead><tr><th>Fecha</th><th>Folio</th><th>Cliente</th><th>Producto</th><th>Cantidad</th></tr></thead><tbody id="rep-t-emb"></tbody></table></div>
   </div>
 </div>
-
 </main>
 </div>
 
@@ -1857,17 +1782,23 @@ function printOPQR() {
   setTimeout(function(){ w.print(); }, 500);
 }
 
-// ── REPORTES ────────────────────────────────────────────────────────────────
+// ── REPORTES con soporte de fechas en formato MX ─────────────────────────
 let repCharts = {};
 
+function parseFecha(str) {
+  if(!str) return '';
+  str = str.toString().trim();
+  if(/^\d{4}-\d{2}-\d{2}/.test(str)) return str.substring(0,10);
+  // Formato MX: 19/5/2026, 2:09 p.m.
+  const mx = str.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/);
+  if(mx) return mx[3]+'-'+mx[2].padStart(2,'0')+'-'+mx[1].padStart(2,'0');
+  try { const d=new Date(str); if(!isNaN(d)) return d.toISOString().substring(0,10); } catch(e){}
+  return str.substring(0,10);
+}
+
 function setRango(dias) {
-  const hasta = new Date();
-  const desde = new Date();
-  if(dias === 0) {
-    // Solo hoy
-  } else {
-    desde.setDate(desde.getDate() - dias);
-  }
+  const hasta = new Date(), desde = new Date();
+  if(dias > 0) desde.setDate(desde.getDate() - dias);
   document.getElementById('rep-hasta').value = hasta.toISOString().split('T')[0];
   document.getElementById('rep-desde').value = desde.toISOString().split('T')[0];
   generarReporte();
@@ -1875,9 +1806,7 @@ function setRango(dias) {
 
 function initRepFiltros() {
   const sm = document.getElementById('rep-maq');
-  if(sm) {
-    sm.innerHTML = '<option value="">Todas</option>' + db.maquinas.map(m=>`<option value="${m['Maquina ID']||m.MaqID}">${m.Nombre}</option>`).join('');
-  }
+  if(sm) sm.innerHTML = '<option value="">Todas</option>' + db.maquinas.map(m=>`<option value="${m['Maquina ID']||m.MaqID}">${m.Nombre}</option>`).join('');
   if(!document.getElementById('rep-hasta').value) {
     const hoy = new Date().toISOString().split('T')[0];
     const hace30 = new Date(); hace30.setDate(hace30.getDate()-30);
@@ -1890,9 +1819,9 @@ function filtrarPorFecha(arr, campoFecha) {
   const desde = document.getElementById('rep-desde').value;
   const hasta = document.getElementById('rep-hasta').value;
   const turno = document.getElementById('rep-turno').value;
-  const maq   = document.getElementById('rep-maq').value;
+  const maqFil = document.getElementById('rep-maq').value;
   return arr.filter(r => {
-    const f = (r[campoFecha]||'').toString().substring(0,10);
+    const f = parseFecha(r[campoFecha]);
     if(desde && f < desde) return false;
     if(hasta && f > hasta) return false;
     if(turno && r.Turno && r.Turno !== turno) return false;
@@ -1900,9 +1829,7 @@ function filtrarPorFecha(arr, campoFecha) {
   });
 }
 
-function destroyChart(id) {
-  if(repCharts[id]) { try{repCharts[id].destroy();}catch(e){} repCharts[id]=null; }
-}
+function destroyChart(id) { if(repCharts[id]){try{repCharts[id].destroy();}catch(e){} repCharts[id]=null;} }
 
 function generarReporte() {
   initRepFiltros();
@@ -1910,25 +1837,20 @@ function generarReporte() {
   const hasta = document.getElementById('rep-hasta').value;
   const turno = document.getElementById('rep-turno').value;
   const maqFil = document.getElementById('rep-maq').value;
+  document.getElementById('rep-rango-label').textContent = (desde||'inicio')+' → '+(hasta||'hoy')+(turno?' · '+turno:'')+(maqFil?' · '+maqName(maqFil):'');
 
-  document.getElementById('rep-rango-label').textContent =
-    (desde||'inicio') + ' → ' + (hasta||'hoy') + (turno?' · '+turno:'') + (maqFil?' · '+maqName(maqFil):'');
-
-  // Filtrar registros
   const regs = filtrarPorFecha(db.registros, 'CreatedAt').filter(r => {
     if(!maqFil) return true;
     const op = db.ops.find(o=>o.OPID===r.OPID);
     return op && (op.MaquinaID===maqFil||op['Maquina ID']===maqFil);
   });
-
-  const paros  = filtrarPorFecha(db.paros, 'CreatedAt').filter(r => !maqFil || r.MaqID===maqFil || r['Maq ID']===maqFil);
+  const paros = filtrarPorFecha(db.paros, 'CreatedAt').filter(r => !maqFil || r.MaqID===maqFil);
   const consumos = filtrarPorFecha(db.consumos, 'CreatedAt');
-  const embs   = filtrarPorFecha(db.embarques, 'FechaEmbarque');
+  const embs = filtrarPorFecha(db.embarques, 'FechaEmbarque');
 
-  // KPIs
   const totProd = regs.reduce((s,r)=>s+(parseFloat(r.CantidadProducida)||0),0);
   const totMerma = regs.reduce((s,r)=>s+(parseFloat(r.Merma)||0),0);
-  const efic = totProd>0 ? Math.round((totProd-totMerma)/totProd*100) : 0;
+  const efic = totProd>0?Math.round((totProd-totMerma)/totProd*100):0;
   const totParos = paros.length;
   const minParos = paros.reduce((s,p)=>s+(parseFloat(p.DuracionMin)||0),0);
   const totEmb = embs.reduce((s,e)=>s+(parseFloat(e.Cantidad)||0),0);
@@ -1943,185 +1865,75 @@ function generarReporte() {
     <div class="rep-kpi"><div class="rep-kpi-val" style="color:var(--accent)">${totEmb.toLocaleString('es-MX')}</div><div class="rep-kpi-lbl">Embarques</div></div>
     <div class="rep-kpi"><div class="rep-kpi-val">${totConsumo.toLocaleString('es-MX')}</div><div class="rep-kpi-lbl">Consumo MP</div></div>`;
 
-  // ── GRÁFICA: Producción por día ──
+  // Gráfica: Producción por día
   const diasMap = {};
-  regs.forEach(r => {
-    const f = (r.CreatedAt||'').toString().substring(0,10);
-    if(!f) return;
-    diasMap[f] = (diasMap[f]||0) + (parseFloat(r.CantidadProducida)||0);
-  });
+  regs.forEach(r=>{ const f=parseFecha(r.CreatedAt); if(f) diasMap[f]=(diasMap[f]||0)+(parseFloat(r.CantidadProducida)||0); });
   const diasKeys = Object.keys(diasMap).sort();
   destroyChart('dias');
-  const ctx1 = document.getElementById('chart-rep-dias');
-  if(ctx1) repCharts['dias'] = new Chart(ctx1, {
-    type:'line',
-    data:{ labels:diasKeys, datasets:[{label:'Producción',data:diasKeys.map(d=>diasMap[d]),borderColor:'#1A6B4A',backgroundColor:'rgba(26,107,74,.1)',fill:true,tension:.3,pointRadius:4}] },
-    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{y:{beginAtZero:true,ticks:{font:{size:10}}},x:{ticks:{font:{size:10}}}}}
-  });
+  const ctx1=document.getElementById('chart-rep-dias');
+  if(ctx1) repCharts['dias']=new Chart(ctx1,{type:'line',data:{labels:diasKeys,datasets:[{label:'Producción',data:diasKeys.map(d=>diasMap[d]),borderColor:'#1A6B4A',backgroundColor:'rgba(26,107,74,.1)',fill:true,tension:.3,pointRadius:4}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{y:{beginAtZero:true,ticks:{font:{size:10}}},x:{ticks:{font:{size:10}}}}}});
 
-  // ── GRÁFICA: Producción por turno ──
-  const turnosData = ['Mañana','Tarde','Noche'].map(t=>regs.filter(r=>r.Turno===t).reduce((s,r)=>s+(parseFloat(r.CantidadProducida)||0),0));
-  const mermaData  = ['Mañana','Tarde','Noche'].map(t=>regs.filter(r=>r.Turno===t).reduce((s,r)=>s+(parseFloat(r.Merma)||0),0));
+  // Gráfica: Producción por turno
+  const tData=['Mañana','Tarde','Noche'].map(t=>regs.filter(r=>r.Turno===t).reduce((s,r)=>s+(parseFloat(r.CantidadProducida)||0),0));
+  const mData=['Mañana','Tarde','Noche'].map(t=>regs.filter(r=>r.Turno===t).reduce((s,r)=>s+(parseFloat(r.Merma)||0),0));
   destroyChart('turnos');
-  const ctx2 = document.getElementById('chart-rep-turnos');
-  if(ctx2) repCharts['turnos'] = new Chart(ctx2, {
-    type:'bar',
-    data:{ labels:['Mañana','Tarde','Noche'], datasets:[
-      {label:'Producción',data:turnosData,backgroundColor:'rgba(26,107,74,.75)',borderRadius:6},
-      {label:'Merma',data:mermaData,backgroundColor:'rgba(138,90,10,.5)',borderRadius:6}
-    ]},
-    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'bottom',labels:{font:{size:10}}}},scales:{y:{beginAtZero:true,ticks:{font:{size:10}}},x:{ticks:{font:{size:10}}}}}
-  });
+  const ctx2=document.getElementById('chart-rep-turnos');
+  if(ctx2) repCharts['turnos']=new Chart(ctx2,{type:'bar',data:{labels:['Mañana','Tarde','Noche'],datasets:[{label:'Producción',data:tData,backgroundColor:'rgba(26,107,74,.75)',borderRadius:6},{label:'Merma',data:mData,backgroundColor:'rgba(138,90,10,.5)',borderRadius:6}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'bottom',labels:{font:{size:10}}}},scales:{y:{beginAtZero:true,ticks:{font:{size:10}}},x:{ticks:{font:{size:10}}}}}});
 
-  // ── GRÁFICA: Paros por tipo ──
-  const parosTipos = {};
-  paros.forEach(p=>{ const t=p.TipoParo||'Otro'; parosTipos[t]=(parosTipos[t]||0)+1; });
-  const pTipos = Object.keys(parosTipos);
+  // Gráfica: Paros por tipo
+  const pMap={};paros.forEach(p=>{const t=p.TipoParo||'Otro';pMap[t]=(pMap[t]||0)+1;});
+  const pKeys=Object.keys(pMap);
   destroyChart('paros');
-  const ctx3 = document.getElementById('chart-rep-paros');
-  if(ctx3) {
-    if(pTipos.length) {
-      repCharts['paros'] = new Chart(ctx3, {
-        type:'doughnut',
-        data:{ labels:pTipos, datasets:[{data:pTipos.map(t=>parosTipos[t]),backgroundColor:['#E24B4A','#D4851A','#2D4A8A','#1A6B4A','#8A1A8A','#6B6B1A']}] },
-        options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'bottom',labels:{font:{size:10}}}}}
-      });
-    } else {
-      ctx3.parentElement.innerHTML = '<p style="color:var(--text3);font-size:13px;text-align:center;padding:40px 0">Sin paros en el período</p>';
-    }
-  }
+  const ctx3=document.getElementById('chart-rep-paros');
+  if(ctx3){if(pKeys.length)repCharts['paros']=new Chart(ctx3,{type:'doughnut',data:{labels:pKeys,datasets:[{data:pKeys.map(t=>pMap[t]),backgroundColor:['#E24B4A','#D4851A','#2D4A8A','#1A6B4A','#8A1A8A','#6B6B1A']}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'bottom',labels:{font:{size:10}}}}}});else ctx3.parentElement.innerHTML='<p style="color:var(--text3);font-size:13px;text-align:center;padding:40px 0">Sin paros en el período</p>';}
 
-  // ── GRÁFICA: Consumo MP ──
-  const mpMap = {};
-  consumos.forEach(c=>{ const n=matName(c.MatID||c['Mat ID']); mpMap[n]=(mpMap[n]||0)+(parseFloat(c.Cantidad)||0); });
-  const mpKeys = Object.keys(mpMap);
+  // Gráfica: Consumo MP
+  const mpMap={};consumos.forEach(c=>{const n=matName(c.MatID||c['Mat ID']);mpMap[n]=(mpMap[n]||0)+(parseFloat(c.Cantidad)||0);});
+  const mpKeys=Object.keys(mpMap);
   destroyChart('mp');
-  const ctx4 = document.getElementById('chart-rep-mp');
-  if(ctx4) {
-    if(mpKeys.length) {
-      repCharts['mp'] = new Chart(ctx4, {
-        type:'bar',
-        data:{ labels:mpKeys, datasets:[{label:'Consumo',data:mpKeys.map(k=>mpMap[k]),backgroundColor:'rgba(45,74,138,.7)',borderRadius:6}] },
-        options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{y:{beginAtZero:true,ticks:{font:{size:10}}},x:{ticks:{font:{size:10}}}}}
-      });
-    } else {
-      ctx4.parentElement.innerHTML = '<p style="color:var(--text3);font-size:13px;text-align:center;padding:40px 0">Sin consumos en el período</p>';
-    }
-  }
+  const ctx4=document.getElementById('chart-rep-mp');
+  if(ctx4){if(mpKeys.length)repCharts['mp']=new Chart(ctx4,{type:'bar',data:{labels:mpKeys,datasets:[{label:'Consumo',data:mpKeys.map(k=>mpMap[k]),backgroundColor:'rgba(45,74,138,.7)',borderRadius:6}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{y:{beginAtZero:true,ticks:{font:{size:10}}},x:{ticks:{font:{size:10}}}}}});else ctx4.parentElement.innerHTML='<p style="color:var(--text3);font-size:13px;text-align:center;padding:40px 0">Sin consumos en el período</p>';}
 
-  // ── GRÁFICA: Embarques por producto ──
-  const embMap = {};
-  embs.forEach(e=>{ const n=prodName(e.ProdID||e['Prod ID']); embMap[n]=(embMap[n]||0)+(parseFloat(e.Cantidad)||0); });
-  const embKeys = Object.keys(embMap);
+  // Gráfica: Embarques por producto
+  const embMap={};embs.forEach(e=>{const n=prodName(e.ProdID||e['Prod ID']);embMap[n]=(embMap[n]||0)+(parseFloat(e.Cantidad)||0);});
+  const embKeys=Object.keys(embMap);
   destroyChart('emb');
-  const ctx5 = document.getElementById('chart-rep-emb');
-  if(ctx5) {
-    if(embKeys.length) {
-      repCharts['emb'] = new Chart(ctx5, {
-        type:'bar',
-        data:{ labels:embKeys, datasets:[{label:'Embarques',data:embKeys.map(k=>embMap[k]),backgroundColor:'rgba(26,107,74,.7)',borderRadius:6}] },
-        options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{y:{beginAtZero:true,ticks:{font:{size:10}}},x:{ticks:{font:{size:10}}}}}
-      });
-    } else {
-      ctx5.parentElement.innerHTML = '<p style="color:var(--text3);font-size:13px;text-align:center;padding:40px 0">Sin embarques en el período</p>';
-    }
-  }
+  const ctx5=document.getElementById('chart-rep-emb');
+  if(ctx5){if(embKeys.length)repCharts['emb']=new Chart(ctx5,{type:'bar',data:{labels:embKeys,datasets:[{label:'Embarques',data:embKeys.map(k=>embMap[k]),backgroundColor:'rgba(26,107,74,.7)',borderRadius:6}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{y:{beginAtZero:true,ticks:{font:{size:10}}},x:{ticks:{font:{size:10}}}}}});else ctx5.parentElement.innerHTML='<p style="color:var(--text3);font-size:13px;text-align:center;padding:40px 0">Sin embarques en el período</p>';}
 
-  // ── GRÁFICA: Eficiencia por máquina ──
-  const maqEfic = {};
-  db.ops.forEach(op => {
-    const mid = op.MaquinaID||op['Maquina ID']||'Sin máquina';
-    const mn = maqName(mid);
-    const opRegs = regs.filter(r=>r.OPID===op.OPID);
-    if(!opRegs.length) return;
-    const prod = opRegs.reduce((s,r)=>s+(parseFloat(r.CantidadProducida)||0),0);
-    const merma = opRegs.reduce((s,r)=>s+(parseFloat(r.Merma)||0),0);
-    if(!maqEfic[mn]) maqEfic[mn]={prod:0,merma:0};
-    maqEfic[mn].prod += prod;
-    maqEfic[mn].merma += merma;
-  });
-  const maqEficKeys = Object.keys(maqEfic);
-  const maqEficVals = maqEficKeys.map(k=>maqEfic[k].prod>0?Math.round((maqEfic[k].prod-maqEfic[k].merma)/maqEfic[k].prod*100):0);
+  // Gráfica: Eficiencia por máquina
+  const maqEfic={};
+  db.ops.forEach(op=>{const mid=op.MaquinaID||op['Maquina ID']||'Sin máquina';const mn=maqName(mid);const opRegs=regs.filter(r=>r.OPID===op.OPID);if(!opRegs.length)return;const p=opRegs.reduce((s,r)=>s+(parseFloat(r.CantidadProducida)||0),0);const m=opRegs.reduce((s,r)=>s+(parseFloat(r.Merma)||0),0);if(!maqEfic[mn])maqEfic[mn]={prod:0,merma:0};maqEfic[mn].prod+=p;maqEfic[mn].merma+=m;});
+  const maqEficKeys=Object.keys(maqEfic);
+  const maqEficVals=maqEficKeys.map(k=>maqEfic[k].prod>0?Math.round((maqEfic[k].prod-maqEfic[k].merma)/maqEfic[k].prod*100):0);
   destroyChart('efic');
-  const ctx6 = document.getElementById('chart-rep-efic');
-  if(ctx6) {
-    if(maqEficKeys.length) {
-      repCharts['efic'] = new Chart(ctx6, {
-        type:'bar',
-        data:{ labels:maqEficKeys, datasets:[{label:'Eficiencia %',data:maqEficVals,backgroundColor:maqEficVals.map(v=>v>=90?'rgba(26,107,74,.75)':v>=70?'rgba(212,133,26,.75)':'rgba(226,75,74,.75)'),borderRadius:6}] },
-        options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{y:{beginAtZero:true,max:100,ticks:{font:{size:10},callback:v=>v+'%'}},x:{ticks:{font:{size:10}}}}}
-      });
-    } else {
-      ctx6.parentElement.innerHTML = '<p style="color:var(--text3);font-size:13px;text-align:center;padding:40px 0">Sin datos de máquinas</p>';
-    }
-  }
+  const ctx6=document.getElementById('chart-rep-efic');
+  if(ctx6){if(maqEficKeys.length)repCharts['efic']=new Chart(ctx6,{type:'bar',data:{labels:maqEficKeys,datasets:[{label:'Eficiencia %',data:maqEficVals,backgroundColor:maqEficVals.map(v=>v>=90?'rgba(26,107,74,.75)':v>=70?'rgba(212,133,26,.75)':'rgba(226,75,74,.75)'),borderRadius:6}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{y:{beginAtZero:true,max:100,ticks:{font:{size:10},callback:v=>v+'%'}},x:{ticks:{font:{size:10}}}}}});else ctx6.parentElement.innerHTML='<p style="color:var(--text3);font-size:13px;text-align:center;padding:40px 0">Sin datos</p>';}
 
-  // ── TABLA: Producción ──
-  document.getElementById('rep-t-prod').innerHTML = regs.length
-    ? [...regs].sort((a,b)=>((a.CreatedAt||'')>(b.CreatedAt||''))?-1:1).map(r=>{
-        const op=db.ops.find(o=>o.OPID===r.OPID);
-        const cant=parseFloat(r.CantidadProducida)||0;
-        const merma=parseFloat(r.Merma)||0;
-        const e=cant>0?Math.round((cant-merma)/cant*100):0;
-        const bc=e>=90?'color:var(--green)':e>=70?'color:var(--amber)':'color:var(--red)';
-        return `<tr><td>${(r.CreatedAt||'').toString().substring(0,10)}</td><td><strong>${op?.NumeroOP||r.OPID}</strong></td><td>${prodName(op?.ProdID||op?.['Prod ID'])}</td><td>${maqName(op?.MaquinaID||op?.['Maquina ID'])}</td><td>${r.Turno||'—'}</td><td><strong>${cant}</strong></td><td>${merma}</td><td style="${bc}">${e}%</td></tr>`;
-      }).join('')
-    : '<tr><td colspan="8" class="empty-row">Sin registros en el período</td></tr>';
+  // Tablas
+  document.getElementById('rep-t-prod').innerHTML=regs.length?[...regs].sort((a,b)=>parseFecha(b.CreatedAt)>parseFecha(a.CreatedAt)?1:-1).map(r=>{const op=db.ops.find(o=>o.OPID===r.OPID);const c=parseFloat(r.CantidadProducida)||0;const m=parseFloat(r.Merma)||0;const e=c>0?Math.round((c-m)/c*100):0;const bc=e>=90?'color:var(--green)':e>=70?'color:var(--amber)':'color:var(--red)';return`<tr><td>${parseFecha(r.CreatedAt)}</td><td><strong>${op?.NumeroOP||r.OPID}</strong></td><td>${prodName(op?.ProdID||op?.['Prod ID'])}</td><td>${maqName(op?.MaquinaID||op?.['Maquina ID'])}</td><td>${r.Turno||'—'}</td><td><strong>${c}</strong></td><td>${m}</td><td style="${bc}">${e}%</td></tr>`;}).join(''):'<tr><td colspan="8" class="empty-row">Sin registros en el período</td></tr>';
 
-  // ── TABLA: Paros ──
-  document.getElementById('rep-t-paros').innerHTML = paros.length
-    ? [...paros].sort((a,b)=>((a.CreatedAt||'')>(b.CreatedAt||''))?-1:1).map(p=>`<tr>
-        <td>${(p.CreatedAt||'').toString().substring(0,10)}</td>
-        <td><strong>${maqName(p.MaqID||p['Maq ID'])}</strong></td>
-        <td>${db.ops.find(o=>o.OPID===p.OPID)?.NumeroOP||p.OPID||'—'}</td>
-        <td>${p.TipoParo||'—'}</td>
-        <td style="max-width:200px;overflow:hidden;text-overflow:ellipsis">${p.Causa||'—'}</td>
-        <td>${p.DuracionMin?p.DuracionMin+' min':'—'}</td></tr>`).join('')
-    : '<tr><td colspan="6" class="empty-row">Sin paros en el período</td></tr>';
+  document.getElementById('rep-t-paros').innerHTML=paros.length?[...paros].map(p=>`<tr><td>${parseFecha(p.CreatedAt)}</td><td><strong>${maqName(p.MaqID||p['Maq ID'])}</strong></td><td>${db.ops.find(o=>o.OPID===p.OPID)?.NumeroOP||p.OPID||'—'}</td><td>${p.TipoParo||'—'}</td><td>${p.Causa||'—'}</td><td>${p.DuracionMin?p.DuracionMin+' min':'—'}</td></tr>`).join(''):'<tr><td colspan="6" class="empty-row">Sin paros en el período</td></tr>';
 
-  // ── TABLA: Consumos MP ──
-  document.getElementById('rep-t-mp').innerHTML = consumos.length
-    ? [...consumos].sort((a,b)=>((a.CreatedAt||'')>(b.CreatedAt||''))?-1:1).map(c=>`<tr>
-        <td>${(c.CreatedAt||'').toString().substring(0,10)}</td>
-        <td><strong>${db.ops.find(o=>o.OPID===c.OPID)?.NumeroOP||c.OPID||'—'}</strong></td>
-        <td>${matName(c.MatID||c['Mat ID'])}</td>
-        <td><strong>${c.Cantidad}</strong></td></tr>`).join('')
-    : '<tr><td colspan="4" class="empty-row">Sin consumos en el período</td></tr>';
+  document.getElementById('rep-t-mp').innerHTML=consumos.length?[...consumos].map(c=>`<tr><td>${parseFecha(c.CreatedAt)}</td><td><strong>${db.ops.find(o=>o.OPID===c.OPID)?.NumeroOP||c.OPID||'—'}</strong></td><td>${matName(c.MatID||c['Mat ID'])}</td><td><strong>${c.Cantidad}</strong></td></tr>`).join(''):'<tr><td colspan="4" class="empty-row">Sin consumos en el período</td></tr>';
 
-  // ── TABLA: Embarques ──
-  document.getElementById('rep-t-emb').innerHTML = embs.length
-    ? [...embs].sort((a,b)=>((a.FechaEmbarque||'')>(b.FechaEmbarque||''))?-1:1).map(e=>`<tr>
-        <td>${e.FechaEmbarque||'—'}</td>
-        <td><strong>${e.Folio||'—'}</strong></td>
-        <td>${e.Cliente||'—'}</td>
-        <td>${prodName(e.ProdID||e['Prod ID'])}</td>
-        <td><strong>${e.Cantidad}</strong></td></tr>`).join('')
-    : '<tr><td colspan="5" class="empty-row">Sin embarques en el período</td></tr>';
+  document.getElementById('rep-t-emb').innerHTML=embs.length?[...embs].map(e=>`<tr><td>${e.FechaEmbarque||'—'}</td><td><strong>${e.Folio||'—'}</strong></td><td>${e.Cliente||'—'}</td><td>${prodName(e.ProdID||e['Prod ID'])}</td><td><strong>${e.Cantidad}</strong></td></tr>`).join(''):'<tr><td colspan="5" class="empty-row">Sin embarques en el período</td></tr>';
 }
 
 function exportarCSV() {
-  const desde = document.getElementById('rep-desde').value;
-  const hasta = document.getElementById('rep-hasta').value;
-  const regs = filtrarPorFecha(db.registros, 'CreatedAt');
-  let csv = 'Fecha,OP,Producto,Maquina,Turno,Producido,Merma,Eficiencia\n';
-  regs.forEach(r => {
-    const op = db.ops.find(o=>o.OPID===r.OPID);
-    const cant = parseFloat(r.CantidadProducida)||0;
-    const merma = parseFloat(r.Merma)||0;
-    const efic = cant>0?Math.round((cant-merma)/cant*100):0;
-    csv += [(r.CreatedAt||'').toString().substring(0,10), op?.NumeroOP||r.OPID, prodName(op?.ProdID||op?.['Prod ID']), maqName(op?.MaquinaID||op?.['Maquina ID']), r.Turno||'', cant, merma, efic+'%'].join(',')+'\n';
-  });
-  const blob = new Blob([csv], {type:'text/csv;charset=utf-8;'});
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url; a.download = 'reporte_produccion_'+desde+'_'+hasta+'.csv';
-  a.click(); URL.revokeObjectURL(url);
+  const desde=document.getElementById('rep-desde').value, hasta=document.getElementById('rep-hasta').value;
+  const regs=filtrarPorFecha(db.registros,'CreatedAt');
+  let csv='Fecha,OP,Producto,Maquina,Turno,Producido,Merma,Eficiencia
+';
+  regs.forEach(r=>{const op=db.ops.find(o=>o.OPID===r.OPID);const c=parseFloat(r.CantidadProducida)||0;const m=parseFloat(r.Merma)||0;csv+=[parseFecha(r.CreatedAt),op?.NumeroOP||r.OPID,prodName(op?.ProdID||op?.['Prod ID']),maqName(op?.MaquinaID||op?.['Maquina ID']),r.Turno||'',c,m,c>0?Math.round((c-m)/c*100)+'%':'0%'].join(',')+'
+';});
+  const blob=new Blob([csv],{type:'text/csv;charset=utf-8;'});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement('a');
+  a.href=url;a.download='reporte_'+desde+'_'+hasta+'.csv';a.click();URL.revokeObjectURL(url);
 }
 
-function renderReportes() {
-  initRepFiltros();
-  generarReporte();
-}
+function renderReportes(){ initRepFiltros(); generarReporte(); }
 
 </script>
 
