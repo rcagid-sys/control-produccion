@@ -497,6 +497,7 @@ tbody tr:hover td { background: var(--surface2); }
 
     <div class="form-grid">
       <div class="form-group"><label>Turno</label><select id="pr-turno"><option>Mañana</option><option>Tarde</option><option>Noche</option></select></div>
+      <div class="form-group"><label>Fecha de producción</label><input id="pr-fecha" type="date"/></div>
       <div class="form-group"><label>Cantidad producida</label><input id="pr-cant" type="number" placeholder="0"/></div>
       <div class="form-group"><label>Merma</label><input id="pr-merma" type="number" placeholder="0"/></div>
       <div class="form-group"><label>Hora inicio</label><input id="pr-hi" type="time"/></div>
@@ -787,7 +788,7 @@ tbody tr:hover td { background: var(--surface2); }
 </div>
 
 <script>
-const API = 'https://script.google.com/macros/s/AKfycbxIwNQOqeZctdTp1uSZUIIbrA8s6twVVuiCNBG1xdBNWUkVu5okMpaUeemudvGPCBfN/exec';
+const API = 'https://script.google.com/macros/s/AKfycbxnuZHvayHHdYIJBgGGpEhJtqqY1m8sFRvBVX3ZemhY6yU9GfGMeCuFGKKy1ZaUegIm/exec';
 
 let db = { materiales:[], productos:[], maquinas:[], ops:[], registros:[], entradas:[], movimientos:[], consumos:[], embarques:[], paros:[], formulas:[] };
 
@@ -1373,6 +1374,8 @@ function toggleManual(){ const m=document.getElementById('manual-select'); m.sty
 function renderProd(){
   const s = document.getElementById('pr-op');
   if(s) s.innerHTML = db.ops.filter(o=>o.Estatus!=='Cerrada'&&o.Estatus!=='Terminada').map(o=>`<option value="${o.OPID}">${o.NumeroOP} · ${prodName(o.ProdID||o['Prod ID'])}</option>`).join('');
+  const pf = document.getElementById('pr-fecha');
+  if(pf && !pf.value) pf.value = today();
   const tb = document.getElementById('t-prod');
   if(!db.registros.length){ tb.innerHTML='<tr><td colspan="6" class="empty-row">Sin registros aún.</td></tr>'; return; }
   tb.innerHTML = [...db.registros].reverse().map(r=>{
@@ -1396,8 +1399,10 @@ async function saveProd(){
   if(!cant){ showAlert('al-prod','Captura la cantidad producida.','err'); return; }
   const op = db.ops.find(o=>o.OPID===opid);
   const pct = op ? Math.round(cant/(parseFloat(op.CantidadPlaneada)||1)*100) : 0;
+  const fechaProd = document.getElementById('pr-fecha').value;
+  const createdAtProd = fechaProd ? new Date(fechaProd).toLocaleDateString('es-MX') + ', 12:00:00 p.m.' : nowStr();
   showAlert('al-prod','Guardando en Google Sheets...','inf');
-  const r = await apiPost({action:'saveRegistro',RegID:uid(),OPID:opid,ProdID:op?.ProdID||op?.['Prod ID']||'',Turno:turno,OperadorID:'USR-001',MaquinaID:op?.MaquinaID||'',CantidadProducida:cant,Merma:merma,HoraInicio:hi,HoraFin:hf,Observaciones:obs,Cumplimiento:pct});
+  const r = await apiPost({action:'saveRegistro',RegID:uid(),OPID:opid,ProdID:op?.ProdID||op?.['Prod ID']||'',Turno:turno,OperadorID:'USR-001',MaquinaID:op?.MaquinaID||'',CantidadProducida:cant,Merma:merma,HoraInicio:hi,HoraFin:hf,Observaciones:obs,Cumplimiento:pct,CreatedAt:createdAtProd});
   if(r.error){ showAlert('al-prod','Error: '+r.error,'err'); return; }
   const prod = db.productos.find(p=>p['Prod ID']===(op?.ProdID||op?.['Prod ID'])||p.ProdID===(op?.ProdID||op?.['Prod ID']));
   const antes = parseFloat(prod?.StockActual)||0;
@@ -1444,6 +1449,7 @@ async function saveProd(){
   document.getElementById('pr-cant').value='';
   document.getElementById('pr-merma').value='';
   document.getElementById('pr-obs').value='';
+  document.getElementById('pr-fecha').value = today();
   setTimeout(()=>loadAll(), 1500);
 }
 
