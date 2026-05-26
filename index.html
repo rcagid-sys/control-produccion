@@ -712,7 +712,7 @@ tbody tr:hover td { background: var(--surface2); }
 <script>
 const API = 'https://script.google.com/macros/s/AKfycbwub-Y-Yv6buks-35efNTEjCdArbQJ93hUwsUf-0TiQwNavZOAa2V9A6JoPdHcghN-F/exec';
 
-let db = { materiales:[], productos:[], maquinas:[], ops:[], registros:[], entradas:[], movimientos:[], consumos:[], embarques:[], paros:[] };
+let db = { materiales:[], productos:[], maquinas:[], ops:[], registros:[], entradas:[], movimientos:[], consumos:[], embarques:[], paros:[], formulas:[] };
 
 function uid(){ return Math.random().toString(36).substr(2,8); }
 function today(){ return new Date().toISOString().split('T')[0]; }
@@ -787,6 +787,7 @@ async function loadAll(){
   db.consumos   = res.consumos   || [];
   db.embarques  = res.embarques  || [];
   db.paros      = res.paros      || [];
+  db.formulas   = res.formulas   || [];
   showGlobal('✓ Datos sincronizados desde Google Sheets', 'ok', 2500);
   const cur = document.querySelector('.nav-item.active');
   if(cur){ const m = cur.getAttribute('onclick').match(/'([^']+)'/); if(m) render(m[1]); }
@@ -817,36 +818,21 @@ let chartTurnos = null, chartMaquinas = null;
 function renderDash(){
   document.getElementById('d-fecha').textContent = new Date().toLocaleDateString('es-MX',{weekday:'long',day:'numeric',month:'long',year:'numeric'});
 
-  // ── Helper: kg por registro usando PesoKg de PRODUCTOS ──
-  function kgReg(r) {
-    const op = db.ops.find(o=>o.OPID===r.OPID);
-    const prod = db.productos.find(p=>(p['Prod ID']||p.ProdID)===(op?.ProdID||op?.['Prod ID']));
-    const peso = parseFloat(prod?.PesoKg)||0;
-    return peso;
-  }
-
   // ── KPIs ──
-  const totP  = db.registros.reduce((s,r)=>s+(parseFloat(r.CantidadProducida)||0),0);
-  const totM  = db.registros.reduce((s,r)=>s+(parseFloat(r.Merma)||0),0);
-  // KG: multiplica cada registro por el PesoKg del producto
-  const totKgP = db.registros.reduce((s,r)=>s+(parseFloat(r.CantidadProducida)||0)*kgReg(r),0);
-  const totKgM = db.registros.reduce((s,r)=>s+(parseFloat(r.Merma)||0)*kgReg(r),0);
-  const eficKg = totKgP>0 ? Math.round((totKgP-totKgM)/totKgP*100) : 0;
-  const hayPeso = totKgP > 0; // true si al menos un producto tiene PesoKg definido
-
+  const totP = db.registros.reduce((s,r)=>s+(parseFloat(r.CantidadProducida)||0),0);
+  const totM = db.registros.reduce((s,r)=>s+(parseFloat(r.Merma)||0),0);
   const opsA = db.ops.filter(o=>o.Estatus==='Pendiente'||o.Estatus==='En proceso').length;
   const matC = db.materiales.filter(m=>(parseFloat(m.StockActual)||0)<=(parseFloat(m.StockMinimo)||0)&&(parseFloat(m.StockMinimo)||0)>0).length;
   const embTotal = db.embarques.reduce((s,e)=>s+(parseFloat(e.Cantidad)||0),0);
   const parosA = db.paros.filter(p=>!p.Resuelto&&p.Resuelto!==true&&p.Resuelto!=='TRUE').length;
-
-  const fmtKg = (kg) => kg >= 1000 ? (kg/1000).toFixed(1)+' t' : kg.toFixed(1)+' kg';
+  const efic = totP>0 ? Math.round((totP-totM)/totP*100) : 0;
 
   document.getElementById('d-stats').innerHTML = `
-    <div class="stat-card"><div class="stat-label">Producción total</div><div class="stat-value green">${totP.toLocaleString('es-MX')}</div><div style="font-size:11px;color:var(--text3);margin-top:2px">unidades · ${hayPeso?fmtKg(totKgP):'sin peso'}</div></div>
-    <div class="stat-card"><div class="stat-label">Eficiencia kg</div><div class="stat-value ${eficKg>=90?'green':eficKg>=70?'amber':'red'}">${hayPeso?eficKg+'%':'—'}</div><div style="font-size:11px;color:var(--text3);margin-top:2px">${hayPeso?fmtKg(totKgP-totKgM)+' buenos':'kg producidos vs merma'}</div></div>
+    <div class="stat-card"><div class="stat-label">Producción total</div><div class="stat-value green">${totP.toLocaleString('es-MX')}</div><div style="font-size:11px;color:var(--text3);margin-top:2px">unidades acumuladas</div></div>
+    <div class="stat-card"><div class="stat-label">Eficiencia</div><div class="stat-value ${efic>=90?'green':efic>=70?'amber':'red'}">${efic}%</div><div style="font-size:11px;color:var(--text3);margin-top:2px">producido vs merma</div></div>
     <div class="stat-card"><div class="stat-label">OPs activas</div><div class="stat-value">${opsA}</div><div style="font-size:11px;color:var(--text3);margin-top:2px">en proceso / pendiente</div></div>
     <div class="stat-card"><div class="stat-label">Embarques</div><div class="stat-value green">${embTotal.toLocaleString('es-MX')}</div><div style="font-size:11px;color:var(--text3);margin-top:2px">unidades enviadas</div></div>
-    <div class="stat-card"><div class="stat-label">Merma total</div><div class="stat-value amber">${hayPeso?fmtKg(totKgM):totM.toLocaleString('es-MX')}</div><div style="font-size:11px;color:var(--text3);margin-top:2px">${hayPeso?totM+' unidades':'unidades'}</div></div>
+    <div class="stat-card"><div class="stat-label">Merma total</div><div class="stat-value amber">${totM.toLocaleString('es-MX')}</div><div style="font-size:11px;color:var(--text3);margin-top:2px">unidades</div></div>
     <div class="stat-card"><div class="stat-label">Mat. críticos</div><div class="stat-value ${matC>0?'red':''}">${matC}</div><div style="font-size:11px;color:var(--text3);margin-top:2px">bajo mínimo</div></div>
     <div class="stat-card"><div class="stat-label">Paros activos</div><div class="stat-value ${parosA>0?'red':''}">${parosA}</div><div style="font-size:11px;color:var(--text3);margin-top:2px">sin cerrar</div></div>`;
 
@@ -1319,7 +1305,43 @@ async function saveProd(){
   const prod = db.productos.find(p=>p['Prod ID']===(op?.ProdID||op?.['Prod ID'])||p.ProdID===(op?.ProdID||op?.['Prod ID']));
   const antes = parseFloat(prod?.StockActual)||0;
   await apiPost({action:'saveMovimiento',MovID:uid(),TipoMov:'Entrada_PT',EntidadID:op?.ProdID||op?.['Prod ID'],TipoEntidad:'PT',Cantidad:cant,StockAntes:antes,StockDespues:antes+cant,RefID:op?.NumeroOP||opid,UsuarioID:'USR-001'});
-  showAlert('al-prod','Registro guardado correctamente.','ok');
+  showAlert('al-prod','Guardando consumos automáticos...','inf');
+
+  // ── Consumo automático de MP basado en FORMULAS_MP ──
+  const prodId = op?.ProdID || op?.['Prod ID'];
+  const prodObj = db.productos.find(p=>(p['Prod ID']||p.ProdID)===prodId);
+  const pesoKg = parseFloat(prodObj?.PesoKg)||0;
+  const formulas = db.formulas.filter(f=>f.ProdID===prodId);
+
+  if(formulas.length && pesoKg > 0) {
+    const kgTotales = cant * pesoKg; // kg totales producidos (sin merma)
+    for(const f of formulas) {
+      const matid = f.MatID;
+      const pct = parseFloat(f.Porcentaje)||0;
+      if(!matid || !pct) continue;
+      const kgConsumo = parseFloat((kgTotales * pct).toFixed(4));
+      const mat = db.materiales.find(m=>m.MatID===matid||m['Mat ID']===matid);
+      const antes = parseFloat(mat?.StockActual)||0;
+      await apiPost({
+        action:'saveConsumo',
+        ConsumoID: uid(),
+        OPID: opid,
+        MatID: matid,
+        Cantidad: kgConsumo,
+        LoteMP: 'AUTO',
+        OperadorID: currentUser?.id||'USR-001',
+        CreatedAt: nowStr()
+      });
+      await apiPost({action:'saveMovimiento', MovID:uid(), TipoMov:'Consumo_MP',
+        EntidadID:matid, TipoEntidad:'MP', Cantidad:kgConsumo,
+        StockAntes:antes, StockDespues:Math.max(0,antes-kgConsumo),
+        RefID:op?.NumeroOP||opid, UsuarioID:currentUser?.id||'USR-001'});
+    }
+    showAlert('al-prod',`✓ Registro guardado · ${formulas.length} consumos MP calculados automáticamente.`,'ok');
+  } else {
+    showAlert('al-prod','Registro guardado correctamente.','ok');
+  }
+
   scannedOPID=null;
   document.getElementById('scan-result').style.display='none';
   document.getElementById('pr-cant').value='';
