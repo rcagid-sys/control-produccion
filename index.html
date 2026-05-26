@@ -928,7 +928,7 @@ function renderDash(){
     <div class="stat-card"><div class="stat-label">Eficiencia kg</div><div class="stat-value ${eficKg2>=90?'green':eficKg2>=70?'amber':'red'}">${hayPeso?eficKg2+'%':'—'}</div><div style="font-size:11px;color:var(--text3);margin-top:2px">${hayPeso?fmtKg(totKgBuenos)+' buenos':'kg prod. vs merma'}</div></div>
     <div class="stat-card"><div class="stat-label">OPs activas</div><div class="stat-value">${opsA}</div><div style="font-size:11px;color:var(--text3);margin-top:2px">en proceso / pendiente</div></div>
     <div class="stat-card"><div class="stat-label">Embarques</div><div class="stat-value green">${embTotal.toLocaleString('es-MX')}</div><div style="font-size:11px;color:var(--text3);margin-top:2px">unidades enviadas</div></div>
-    <div class="stat-card"><div class="stat-label">Merma total</div><div class="stat-value amber">${hayPeso?fmtKg(totKgM):'—'}</div><div style="font-size:11px;color:var(--text3);margin-top:2px">${totM.toLocaleString('es-MX')} rollos con merma</div></div>
+    <div class="stat-card"><div class="stat-label">Merma total</div><div class="stat-value amber">${hayPeso?fmtKg(totKgM):'—'}</div><div style="font-size:11px;color:var(--text3);margin-top:2px">${Math.round(totM)} rollos con merma</div></div>
     <div class="stat-card"><div class="stat-label">Mat. críticos</div><div class="stat-value ${matC>0?'red':''}">${matC}</div><div style="font-size:11px;color:var(--text3);margin-top:2px">bajo mínimo</div></div>
     <div class="stat-card"><div class="stat-label">Paros activos</div><div class="stat-value ${parosA>0?'red':''}">${parosA}</div><div style="font-size:11px;color:var(--text3);margin-top:2px">sin cerrar</div></div>`;
 
@@ -986,10 +986,10 @@ function renderDash(){
         return `<div class="inv-row"><div class="dot ${d}"></div><div class="inv-row-name">${m.Descripcion}</div><div class="inv-row-num">${s} ${m.Unidad}</div></div>`;
       }).join('');
 
-  // ── Gráfica: Producción por turno ──
+  // ── Gráfica: Producción por turno en KG ──
   const turnos = ['Mañana','Tarde','Noche'];
-  const prodTurno = turnos.map(t=>db.registros.filter(r=>r.Turno===t).reduce((s,r)=>s+(parseFloat(r.CantidadProducida)||0),0));
-  const mermaTurno = turnos.map(t=>db.registros.filter(r=>r.Turno===t).reduce((s,r)=>s+(parseFloat(r.Merma)||0),0));
+  const prodTurnoKg = turnos.map(t=>db.registros.filter(r=>r.Turno===t).reduce((s,r)=>s+(parseFloat(r.CantidadProducida)||0)*kgReg(r),0));
+  const mermaTurnoKg = turnos.map(t=>db.registros.filter(r=>r.Turno===t).reduce((s,r)=>s+(parseFloat(r.Merma)||0),0));
   setTimeout(()=>{
     const ctx1 = document.getElementById('chart-turnos');
     if(!ctx1) return;
@@ -999,21 +999,21 @@ function renderDash(){
       data:{
         labels: turnos,
         datasets:[
-          {label:'Producido',data:prodTurno,backgroundColor:'rgba(26,107,74,.75)',borderRadius:6},
-          {label:'Merma',data:mermaTurno,backgroundColor:'rgba(138,90,10,.5)',borderRadius:6}
+          {label:'Producido (kg)',data:prodTurnoKg.map(v=>parseFloat(v.toFixed(1))),backgroundColor:'rgba(26,107,74,.75)',borderRadius:6},
+          {label:'Merma (kg)',data:mermaTurnoKg.map(v=>parseFloat(v.toFixed(1))),backgroundColor:'rgba(138,90,10,.5)',borderRadius:6}
         ]
       },
-      options:{responsive:true,plugins:{legend:{position:'bottom',labels:{font:{size:11}}}},scales:{y:{beginAtZero:true,ticks:{font:{size:11}}},x:{ticks:{font:{size:11}}}}}
+      options:{responsive:true,plugins:{legend:{position:'bottom',labels:{font:{size:11}}}},scales:{y:{beginAtZero:true,ticks:{font:{size:11},callback:v=>v+' kg'}},x:{ticks:{font:{size:11}}}}}
     });
   }, 100);
 
-  // ── Gráfica: Producción por máquina ──
+  // ── Gráfica: Producción por máquina en KG ──
   const maqIds = [...new Set(db.ops.map(o=>o.MaquinaID||o['Maquina ID']||o['MaquinaID']).filter(Boolean))];
   const maqLabels = maqIds.map(id=>maqName(id));
-  const maqProd = maqIds.map(id=>{
+  const maqProdKg = maqIds.map(id=>{
     const ops = db.ops.filter(o=>(o.MaquinaID||o['Maquina ID']||o['MaquinaID'])===id);
     return ops.reduce((s,o)=>{
-      return s + db.registros.filter(r=>r.OPID===o.OPID).reduce((s2,r)=>s2+(parseFloat(r.CantidadProducida)||0),0);
+      return s + db.registros.filter(r=>r.OPID===o.OPID).reduce((s2,r)=>s2+(parseFloat(r.CantidadProducida)||0)*kgReg(r),0);
     },0);
   });
   const colors = ['rgba(45,74,138,.75)','rgba(26,107,74,.75)','rgba(138,90,10,.75)','rgba(138,26,26,.75)','rgba(80,120,200,.75)'];
@@ -1030,13 +1030,13 @@ function renderDash(){
       data:{
         labels: maqLabels,
         datasets:[{
-          label:'Producción acumulada',
-          data: maqProd,
+          label:'Producción kg',
+          data: maqProdKg.map(v=>parseFloat(v.toFixed(1))),
           backgroundColor: maqLabels.map((_,i)=>colors[i%colors.length]),
           borderRadius:6
         }]
       },
-      options:{responsive:true,plugins:{legend:{display:false}},scales:{y:{beginAtZero:true,ticks:{font:{size:11}}},x:{ticks:{font:{size:11}}}}}
+      options:{responsive:true,plugins:{legend:{display:false}},scales:{y:{beginAtZero:true,ticks:{font:{size:11},callback:v=>v+' kg'}},x:{ticks:{font:{size:11}}}}}
     });
   }, 150);
 }
