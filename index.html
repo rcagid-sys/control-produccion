@@ -1174,15 +1174,37 @@ function logout(){
 }
 
 function aplicarPermisos(rol){
-  const esAdmin = rol === 'Administracion' || rol === 'Admin';
-  // Módulos solo para Admin
-  const soloAdmin = ['ops','paros'];
-  soloAdmin.forEach(id=>{
+  const esAdmin   = rol === 'Administracion' || rol === 'Admin';
+  const esJefe    = rol === 'Jefe de planta' || rol === 'JefePlanta';
+  const esAlmacen = rol === 'Jefe de almacen' || rol === 'JefeAlmacen';
+
+  // OPs: solo Admin
+  const navOps = document.querySelector(`.nav-item[onclick*="'ops'"]`);
+  if(navOps) navOps.style.display = esAdmin ? '' : 'none';
+
+  // Paros: Admin y Jefe de planta
+  const navParos = document.querySelector(`.nav-item[onclick*="'paros'"]`);
+  if(navParos) navParos.style.display = (esAdmin || esJefe) ? '' : 'none';
+
+  // Producción y Consumos: Admin, Jefe de planta y Operador (ocultar a Almacén)
+  ['prod','consumos'].forEach(id=>{
     const nav = document.querySelector(`.nav-item[onclick*="'${id}'"]`);
-    if(nav) nav.style.display = esAdmin ? '' : 'none';
+    if(nav) nav.style.display = esAlmacen ? 'none' : '';
   });
-  // Si operador, ir directo a producción
-  if(!esAdmin){
+
+  // Embarques y Entrada MP: Admin y Jefe de almacén
+  ['embarques','entmp'].forEach(id=>{
+    const nav = document.querySelector(`.nav-item[onclick*="'${id}'"]`);
+    if(nav) nav.style.display = (esAdmin || esAlmacen) ? '' : 'none';
+  });
+
+  // Inv MP, Inv PT: todos
+  // Reportes y Trazabilidad: todos
+
+  // Redirigir según rol
+  if(esAlmacen){
+    go('embarques', document.querySelector('.nav-item[onclick*="\'embarques\'"]'));
+  } else if(!esAdmin){
     go('prod', document.querySelector('.nav-item[onclick*="\'prod\'"]'));
   }
 }
