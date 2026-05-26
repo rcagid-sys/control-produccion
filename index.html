@@ -977,6 +977,7 @@ function renderOps(){
       <td style="white-space:nowrap">${nextBtns}</td>
       <td style="white-space:nowrap">
         <button class="btn btn-sm" onclick="showOPQR('${o.OPID}','${o.NumeroOP}','${prodName(o.ProdID||o['Prod ID'])}','${o.Lote||''}')" style="background:#EEF2FB;color:#2D4A8A;border-color:#c0cef0;margin-bottom:3px">📲 QR</button>
+        <button class="btn btn-sm" onclick="imprimirBitacora('${o.OPID}')" style="background:#E8F5EE;color:#1A6B4A;border-color:#b8dfc8;margin-bottom:3px">🖨️ Bitácora</button>
         <button class="btn btn-sm del-op-btn" data-opid="${o.OPID}" data-num="${o.NumeroOP}" style="background:#FDEAEA;color:#8A1A1A;border-color:#f0b8b8">✕ Borrar</button>
       </td></tr>`;
   }).join('');
@@ -1734,6 +1735,93 @@ function printOPQR() {
   w.document.close();
   setTimeout(function(){ w.print(); }, 500);
 }
+
+function imprimirBitacora(opid) {
+  const op = db.ops.find(o => o.OPID === opid);
+  if (!op) { showGlobal('OP no encontrada', 'err', 2000); return; }
+  const prod = db.productos.find(p => (p['Prod ID']||p.ProdID) === op.ProdID);
+  const maq  = db.maquinas.find(m => (m['Maquina ID']||m.MaqID||m['Maq ID']) === (op.MaquinaID||op['Maquina ID']));
+  const w = window.open('', '_blank', 'width=850,height=1100');
+  w.document.write(`<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8"><title>Bitácora ${op.NumeroOP}</title><style>
+  *{box-sizing:border-box;margin:0;padding:0}body{font-family:Arial,sans-serif;font-size:11px;color:#000;background:#fff;padding:18px 22px}
+  .header{display:flex;justify-content:space-between;align-items:flex-start;border-bottom:2px solid #1A3A6B;padding-bottom:10px;margin-bottom:14px}
+  .header-logo{font-size:15px;font-weight:700;color:#1A3A6B}.header-sub{font-size:10px;color:#666;margin-top:2px}
+  .header-title{text-align:center;flex:1}.header-title h1{font-size:16px;font-weight:700;color:#1A3A6B;text-transform:uppercase}
+  .header-folio{text-align:right;font-size:10px;color:#666}.header-folio strong{font-size:13px;color:#000;display:block}
+  .op-info{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:14px;border:1px solid #ccc;border-radius:6px;padding:10px 12px;background:#f8f9fc}
+  .op-field label{font-size:9px;text-transform:uppercase;letter-spacing:.05em;color:#888;display:block;margin-bottom:2px}
+  .op-field span{font-size:12px;font-weight:600;color:#000}
+  .section-title{font-size:11px;font-weight:700;text-transform:uppercase;color:#1A3A6B;border-bottom:1px solid #1A3A6B;padding-bottom:3px;margin-bottom:8px;margin-top:14px}
+  .turno-block{margin-bottom:14px;border:1px solid #ddd;border-radius:6px;overflow:hidden}
+  .turno-header{background:#1A3A6B;color:#fff;padding:5px 10px;font-size:11px;font-weight:700;display:flex;justify-content:space-between}
+  .turno-table{width:100%;border-collapse:collapse}
+  .turno-table th{background:#eef2fb;text-align:center;padding:5px 4px;font-size:9px;text-transform:uppercase;color:#333;border-right:1px solid #ddd;border-bottom:1px solid #ddd}
+  .turno-table td{text-align:center;padding:0;height:28px;border-right:1px solid #ddd;border-bottom:1px solid #ddd}
+  .turno-table tr:last-child td{border-bottom:none}
+  .resumen{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-top:14px}
+  .resumen-box{border:1px solid #ccc;border-radius:6px;padding:8px;text-align:center}
+  .resumen-box label{font-size:9px;text-transform:uppercase;color:#888;display:block;margin-bottom:4px}
+  .resumen-box .val{height:24px;border-bottom:1px solid #999}
+  .obs-box{border:1px solid #ccc;border-radius:6px;padding:10px;margin-top:14px;min-height:60px}
+  .obs-box label{font-size:9px;text-transform:uppercase;color:#888;display:block;margin-bottom:6px}
+  .firmas{display:grid;grid-template-columns:repeat(3,1fr);gap:20px;margin-top:20px}
+  .firma-bloque{text-align:center}.firma-bloque .linea{border-bottom:1px solid #000;height:28px;margin-bottom:4px}
+  .firma-bloque p{font-size:9px;color:#555}
+  .footer{margin-top:14px;padding-top:6px;border-top:1px solid #ddd;display:flex;justify-content:space-between;font-size:8px;color:#aaa}
+  @media print{body{padding:10px 14px}@page{margin:10mm}}
+  </style></head><body>
+  <div class="header">
+    <div><div class="header-logo">🏭 Grupo Dearnes</div><div class="header-sub">Plásticos · Control de Producción</div></div>
+    <div class="header-title"><h1>Bitácora de Producción</h1><p>Registro por turno</p></div>
+    <div class="header-folio">Folio<strong>${op.NumeroOP}</strong>Fecha: ${new Date().toLocaleDateString('es-MX')}</div>
+  </div>
+  <div class="op-info">
+    <div class="op-field"><label>Número OP</label><span>${op.NumeroOP}</span></div>
+    <div class="op-field"><label>Producto</label><span>${prod?.Descripcion||op.ProdID}</span></div>
+    <div class="op-field"><label>Código</label><span>${prod?.Codigo||'—'}</span></div>
+    <div class="op-field"><label>Lote</label><span>${op.Lote||'—'}</span></div>
+    <div class="op-field"><label>Máquina</label><span>${maq?.Nombre||op.MaquinaID||'—'}</span></div>
+    <div class="op-field"><label>Fecha planeada</label><span>${op.FechaPlaneada||'—'}</span></div>
+    <div class="op-field"><label>Cantidad planeada</label><span>${op.CantidadPlaneada} ${prod?.Unidad||'pzas'}</span></div>
+    <div class="op-field"><label>Estatus</label><span>${op.Estatus}</span></div>
+    <div class="op-field"><label>Notas</label><span style="font-size:10px;font-weight:400">${op.Notas||'—'}</span></div>
+  </div>
+  <div class="section-title">Registro por turno</div>
+  ${['Mañana','Tarde','Noche'].map(turno=>`
+  <div class="turno-block">
+    <div class="turno-header"><span>Turno: ${turno}</span><span>Operador: ___________________________</span><span>Fecha: _______________</span></div>
+    <table class="turno-table"><thead><tr>
+      <th style="width:70px">Hora<br>Inicio</th><th style="width:70px">Hora<br>Fin</th>
+      <th style="width:80px">Cantidad<br>Producida</th><th style="width:70px">Merma</th>
+      <th style="width:70px">Lote MP<br>usado</th><th>Observaciones del turno</th>
+      <th style="width:80px">Visto<br>bueno</th>
+    </tr></thead><tbody>
+      <tr><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr>
+      <tr><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr>
+    </tbody></table>
+  </div>`).join('')}
+  <div class="section-title">Resumen del día</div>
+  <div class="resumen">
+    <div class="resumen-box"><label>Total producido</label><div class="val"></div></div>
+    <div class="resumen-box"><label>Total merma</label><div class="val"></div></div>
+    <div class="resumen-box"><label>% Eficiencia</label><div class="val"></div></div>
+    <div class="resumen-box"><label>% Cumplimiento</label><div class="val"></div></div>
+  </div>
+  <div class="obs-box"><label>Observaciones generales / Incidencias</label><div style="height:40px"></div></div>
+  <div class="firmas">
+    <div class="firma-bloque"><div class="linea"></div><p>Supervisor de turno</p></div>
+    <div class="firma-bloque"><div class="linea"></div><p>Jefe de producción</p></div>
+    <div class="firma-bloque"><div class="linea"></div><p>Control de calidad</p></div>
+  </div>
+  <div class="footer">
+    <span>Grupo Dearnes · Plásticos · Control de Producción v1.0</span>
+    <span>${op.NumeroOP} · Generado: ${new Date().toLocaleString('es-MX')}</span>
+  </div>
+  </body></html>`);
+  w.document.close();
+  setTimeout(() => w.print(), 600);
+}
+
 </script>
 
 </body>
