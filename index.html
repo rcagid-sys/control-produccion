@@ -906,23 +906,29 @@ function renderDash(){
     const prod=db.productos.find(p=>(p['Prod ID']||p.ProdID)===(op?.ProdID||op?.['Prod ID']));
     return parseFloat(prod?.Pesokg)||0;
   }
+  // Kg producidos = unidades × PesoKg
+  // Merma ya viene en kg directamente
   const totKgP = db.registros.reduce((s,r)=>s+(parseFloat(r.CantidadProducida)||0)*kgReg(r),0);
-  const totKgM = db.registros.reduce((s,r)=>s+(parseFloat(r.Merma)||0)*kgReg(r),0);
+  const totKgM = db.registros.reduce((s,r)=>s+(parseFloat(r.Merma)||0),0);
   const eficKg = totKgP>0?Math.round((totKgP-totKgM)/totKgP*100):0;
   const hayPeso = totKgP>0;
-  const fmtKg = kg=>kg>=1000?(kg/1000).toFixed(1)+' t':kg.toFixed(1)+' kg';
+  const fmtKg = kg=>kg.toFixed(1)+' kg';
 
   const opsA = db.ops.filter(o=>o.Estatus==='Pendiente'||o.Estatus==='En proceso').length;
   const matC = db.materiales.filter(m=>(parseFloat(m.StockActual)||0)<=(parseFloat(m.StockMinimo)||0)&&(parseFloat(m.StockMinimo)||0)>0).length;
   const embTotal = db.embarques.reduce((s,e)=>s+(parseFloat(e.Cantidad)||0),0);
   const parosA = db.paros.filter(p=>!p.Resuelto&&p.Resuelto!==true&&p.Resuelto!=='TRUE').length;
 
+  // kg buenos = kg producidos - merma en kg
+  const totKgBuenos = totKgP - totKgM;
+  const eficKg2 = totKgP>0?Math.round(totKgBuenos/totKgP*100):0;
+
   document.getElementById('d-stats').innerHTML = `
-    <div class="stat-card"><div class="stat-label">Producción total</div><div class="stat-value green">${totP.toLocaleString('es-MX')}</div><div style="font-size:11px;color:var(--text3);margin-top:2px">unidades · ${hayPeso?fmtKg(totKgP):'sin peso'}</div></div>
-    <div class="stat-card"><div class="stat-label">Eficiencia kg</div><div class="stat-value ${eficKg>=90?'green':eficKg>=70?'amber':'red'}">${hayPeso?eficKg+'%':'—'}</div><div style="font-size:11px;color:var(--text3);margin-top:2px">${hayPeso?fmtKg(totKgP-totKgM)+' buenos':'kg prod. vs merma'}</div></div>
+    <div class="stat-card"><div class="stat-label">Producción total</div><div class="stat-value green">${hayPeso?fmtKg(totKgP):'—'}</div><div style="font-size:11px;color:var(--text3);margin-top:2px">${totP.toLocaleString('es-MX')} unidades</div></div>
+    <div class="stat-card"><div class="stat-label">Eficiencia kg</div><div class="stat-value ${eficKg2>=90?'green':eficKg2>=70?'amber':'red'}">${hayPeso?eficKg2+'%':'—'}</div><div style="font-size:11px;color:var(--text3);margin-top:2px">${hayPeso?fmtKg(totKgBuenos)+' buenos':'kg prod. vs merma'}</div></div>
     <div class="stat-card"><div class="stat-label">OPs activas</div><div class="stat-value">${opsA}</div><div style="font-size:11px;color:var(--text3);margin-top:2px">en proceso / pendiente</div></div>
     <div class="stat-card"><div class="stat-label">Embarques</div><div class="stat-value green">${embTotal.toLocaleString('es-MX')}</div><div style="font-size:11px;color:var(--text3);margin-top:2px">unidades enviadas</div></div>
-    <div class="stat-card"><div class="stat-label">Merma total</div><div class="stat-value amber">${hayPeso?fmtKg(totKgM):totM.toLocaleString('es-MX')}</div><div style="font-size:11px;color:var(--text3);margin-top:2px">${hayPeso?totM+' unidades':'unidades'}</div></div>
+    <div class="stat-card"><div class="stat-label">Merma total</div><div class="stat-value amber">${hayPeso?fmtKg(totKgM):'—'}</div><div style="font-size:11px;color:var(--text3);margin-top:2px">${totM.toLocaleString('es-MX')} unidades</div></div>
     <div class="stat-card"><div class="stat-label">Mat. críticos</div><div class="stat-value ${matC>0?'red':''}">${matC}</div><div style="font-size:11px;color:var(--text3);margin-top:2px">bajo mínimo</div></div>
     <div class="stat-card"><div class="stat-label">Paros activos</div><div class="stat-value ${parosA>0?'red':''}">${parosA}</div><div style="font-size:11px;color:var(--text3);margin-top:2px">sin cerrar</div></div>`;
 
