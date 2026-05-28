@@ -1179,29 +1179,32 @@ function aplicarPermisos(rol){
   const esAdmin   = rol === 'Administracion' || rol === 'Admin';
   const esJefe    = rol === 'Jefe de planta' || rol === 'JefePlanta';
   const esAlmacen = rol === 'Jefe de almacen' || rol === 'JefeAlmacen';
+  const esOper    = rol === 'Operador';
 
-  // OPs: solo Admin
+  // Permisos por módulo:
+  // OPs:        solo Admin y Nancy (Jefe produccion = Admin)
+  // Paros:      Admin + Jefe de planta
+  // Prod/Consumos: Admin + Jefe de planta + Operador + Almacen
+  // Embarques:  Admin + Almacen
+  // Entrada MP: Admin + Almacen
+  // Inv MP/PT:  todos
+  // Trazabilidad/Reportes: todos
+
   const navOps = document.querySelector(`.nav-item[onclick*="'ops'"]`);
   if(navOps) navOps.style.display = esAdmin ? '' : 'none';
 
-  // Paros: Admin y Jefe de planta
   const navParos = document.querySelector(`.nav-item[onclick*="'paros'"]`);
   if(navParos) navParos.style.display = (esAdmin || esJefe) ? '' : 'none';
 
-  // Producción y Consumos: Admin, Jefe de planta y Operador (ocultar a Almacén)
   ['prod','consumos'].forEach(id=>{
     const nav = document.querySelector(`.nav-item[onclick*="'${id}'"]`);
-    if(nav) nav.style.display = esAlmacen ? 'none' : '';
+    if(nav) nav.style.display = (esAdmin || esJefe || esOper || esAlmacen) ? '' : 'none';
   });
 
-  // Embarques y Entrada MP: Admin y Jefe de almacén
   ['embarques','entmp'].forEach(id=>{
     const nav = document.querySelector(`.nav-item[onclick*="'${id}'"]`);
     if(nav) nav.style.display = (esAdmin || esAlmacen) ? '' : 'none';
   });
-
-  // Inv MP, Inv PT: todos
-  // Reportes y Trazabilidad: todos
 
   // Redirigir según rol
   if(esAlmacen){
