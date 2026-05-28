@@ -1177,8 +1177,8 @@ function logout(){
 
 function aplicarPermisos(rol){
   const esAdmin   = rol === 'Administracion' || rol === 'Admin';
-  const esJefe    = rol === 'Jefe de planta' || rol === 'JefePlanta';
-  const esAlmacen = rol === 'Jefe de almacen' || rol === 'JefeAlmacen';
+  const esJefe    = rol === 'Jefe de planta' || rol === 'JefePlanta' || rol === 'Jefe de Planta' || rol === 'Jefe Planta' || rol === 'JefeDePlanta';
+  const esAlmacen = rol === 'Jefe de almacen' || rol === 'JefeAlmacen' || rol === 'Jefe de Almacen' || rol === 'Jefe Almacen' || rol === 'Almacen';
   const esOper    = rol === 'Operador';
 
   // Permisos por módulo:
