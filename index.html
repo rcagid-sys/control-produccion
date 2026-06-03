@@ -935,7 +935,7 @@ const API = 'https://script.google.com/macros/s/AKfycbzz5JTyqGFYyHTusKfobaxnPYAC
 let db = { materiales:[], productos:[], maquinas:[], ops:[], registros:[], entradas:[], movimientos:[], consumos:[], embarques:[], paros:[], formulas:[], pedidos:[], lineasPedido:[] };
 
 function uid(){ return Math.random().toString(36).substr(2,8); }
-function today(){ return new Date().toISOString().split('T')[0]; }
+function today(){ const d=new Date(); return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); }
 function nowStr(){ return new Date().toLocaleString('es-MX'); }
 
 function showGlobal(msg, type, dur=3000){
@@ -1839,7 +1839,7 @@ async function saveParo(){
   const causa = document.getElementById('par-causa').value;
   if(!maqid||!tipo||!hinicio){ showAlert('al-paro','Selecciona máquina, tipo y hora de inicio.','err'); return; }
   showAlert('al-paro','Registrando paro...','inf');
-  const hoy = new Date().toISOString().split('T')[0];
+  const hoy = today();
   const r = await apiPost({action:'saveParo', ParoID:uid(), MaqID:maqid, OPID:opid||'', TipoParo:tipo, HoraInicio:hoy+'T'+hinicio, Causa:causa, OperadorID:'USR-001', CreatedAt:nowStr()});
   if(r.error){ showAlert('al-paro','Error: '+r.error,'err'); return; }
   showAlert('al-paro','Paro registrado. Se notificará al supervisor.','ok');
@@ -2524,11 +2524,13 @@ function parseFecha(str) {
   return str.substring(0,10);
 }
 
+function localDateStr(d){ return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); }
+
 function setRango(dias) {
   const hasta=new Date(), desde=new Date();
   if(dias>0) desde.setDate(desde.getDate()-dias);
-  document.getElementById('rep-hasta').value=hasta.toISOString().split('T')[0];
-  document.getElementById('rep-desde').value=desde.toISOString().split('T')[0];
+  document.getElementById('rep-hasta').value=localDateStr(hasta);
+  document.getElementById('rep-desde').value=localDateStr(desde);
   generarReporte();
 }
 
@@ -2536,10 +2538,9 @@ function initRepFiltros() {
   const sm=document.getElementById('rep-maq');
   if(sm) sm.innerHTML='<option value="">Todas</option>'+db.maquinas.map(m=>`<option value="${m['Maquina ID']||m.MaqID}">${m.Nombre}</option>`).join('');
   if(!document.getElementById('rep-hasta').value) {
-    const hoy=new Date().toISOString().split('T')[0];
     const hace30=new Date(); hace30.setDate(hace30.getDate()-30);
-    document.getElementById('rep-hasta').value=hoy;
-    document.getElementById('rep-desde').value=hace30.toISOString().split('T')[0];
+    document.getElementById('rep-hasta').value=today();
+    document.getElementById('rep-desde').value=localDateStr(hace30);
   }
 }
 
