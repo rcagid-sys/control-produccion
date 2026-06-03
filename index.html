@@ -728,6 +728,11 @@ tbody tr:hover td { background: var(--surface2); }
     </div>
 
     <div class="form-grid" id="emb-form-datos" style="display:none">
+      <div class="form-group full-col"><label>Vincular a pedido (opcional)</label>
+        <select id="emb-pedido" onchange="autocompletarClienteEmb()">
+          <option value="">— Sin pedido (embarque suelto) —</option>
+        </select>
+      </div>
       <div class="form-group"><label>Folio embarque</label><input id="emb-folio" placeholder="EMB-001"/></div>
       <div class="form-group"><label>Cliente / Destino</label><input id="emb-cliente" placeholder="Cliente SA de CV"/></div>
       <div class="form-group"><label>Fecha embarque</label><input id="emb-fecha" type="date"/></div>
@@ -1694,6 +1699,13 @@ async function saveConsumo(){
 function renderEmbarques(){
   const sp = document.getElementById('emb-prod');
   if(sp) sp.innerHTML = db.productos.map(p=>`<option value="${p['Prod ID']||p.ProdID}">${p.Descripcion}</option>`).join('');
+  // Poblar selector de pedidos activos (no entregados)
+  const spe = document.getElementById('emb-pedido');
+  if(spe){
+    const activos = db.pedidos.filter(p=>p.Estatus!=='Entregado'&&p.Estatus!=='Cancelado');
+    spe.innerHTML = '<option value="">— Sin pedido (embarque suelto) —</option>' +
+      activos.map(p=>`<option value="${p.PedidoID}" data-cliente="${(p.Cliente||'').replace(/"/g,'')}">${p.Folio} · ${p.Cliente}</option>`).join('');
+  }
   const ef = document.getElementById('emb-fecha');
   if(ef&&!ef.value) ef.value = today();
   const tb = document.getElementById('t-embarques');
@@ -1706,6 +1718,17 @@ function renderEmbarques(){
     <td style="font-family:'DM Mono',monospace;font-size:11px">${fmtFecha(e.FechaEmbarque)}</td></tr>`).join('');
 }
 
+// Autocompletar cliente al elegir pedido en el form de embarque
+function autocompletarClienteEmb(){
+  const sel = document.getElementById('emb-pedido');
+  const opt = sel.options[sel.selectedIndex];
+  const cli = opt ? opt.getAttribute('data-cliente') : '';
+  if(cli){
+    const cEl = document.getElementById('emb-cliente');
+    if(cEl) cEl.value = cli;
+  }
+}
+
 async function saveEmbarque(){
   const folio = document.getElementById('emb-folio').value.trim();
   const cliente = document.getElementById('emb-cliente').value.trim();
@@ -1714,9 +1737,10 @@ async function saveEmbarque(){
   console.log('Cantidad embarque:', cant);
   const fecha = document.getElementById('emb-fecha').value;
   const notas = document.getElementById('emb-notas').value;
+  const pedidoVinc = document.getElementById('emb-pedido')?.value || '';
   if(!folio||!cant||!prodid){ showAlert('al-emb','Completa folio, producto y cantidad.','err'); return; }
   showAlert('al-emb','Guardando embarque...','inf');
-  const r = await apiPost({action:'saveEmbarque', EmbID:uid(), Folio:folio, Cliente:cliente, ProdID:prodid, Cantidad:cant, FechaEmbarque:fecha, OperadorID:'USR-001', Notas:notas, CreatedAt:nowStr()});
+  const r = await apiPost({action:'saveEmbarque', EmbID:uid(), Folio:folio, Cliente:cliente, ProdID:prodid, Cantidad:cant, FechaEmbarque:fecha, OperadorID:'USR-001', PedidoID:pedidoVinc, Notas:notas, CreatedAt:nowStr()});
   if(r.error){ showAlert('al-emb','Error: '+r.error,'err'); return; }
   const prod = db.productos.find(p=>p['Prod ID']===prodid||p.ProdID===prodid);
   const antes = parseFloat(prod?.StockActual)||0;
@@ -2250,10 +2274,10 @@ function renderListaPedidos() {
             ${p.Prioridad&&p.Prioridad!=='Normal'?`<span style="font-size:10px;font-weight:700;color:${prioColor};background:${p.Prioridad==='Urgente'?'var(--red-bg)':'var(--amber-bg)'};padding:2px 8px;border-radius:10px">${p.Prioridad}</span>`:''}
           </div>
           <div class="ped-meta">
-            <span>📅 Pedido: ${p.FechaPedido||'—'}</span>
-            <span>🎯 Entrega: <strong>${p.FechaPrometida||'—'}</strong></span>
+            <span>📅 Pedido: ${fmtFecha(p.FechaPedido)}</span>
+            <span>🎯 Entrega: <strong>${fmtFecha(p.FechaPrometida)}</strong></span>
             ${p.Canal?`<span>📲 ${p.Canal}</span>`:''}
-            ${p.FechaEntrega?`<span>✓ Entregado: ${p.FechaEntrega}</span>`:''}
+            ${p.FechaEntrega?`<span>✓ Entregado: ${fmtFecha(p.FechaEntrega)}</span>`:''}
           </div>
           <!-- Barra de progreso producción -->
           <div style="margin-top:8px">
