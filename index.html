@@ -212,6 +212,31 @@ tbody tr:hover td { background: var(--surface2); }
 .dash-paro-row:last-child { border-bottom:none; }
 
 
+/* PEDIDOS */
+.ped-linea { display:grid; grid-template-columns:1fr 100px 36px; gap:8px; align-items:center; margin-bottom:8px; }
+.ped-linea:last-child { margin-bottom:0; }
+.semaforo { display:inline-flex; align-items:center; gap:6px; padding:3px 10px; border-radius:20px; font-size:11px; font-weight:600; font-family:'DM Mono',monospace; }
+.sem-verde  { background:#E8F5EE; color:#1A6B4A; }
+.sem-amarillo { background:#FEF3DC; color:#8A5A0A; }
+.sem-rojo   { background:#FDEAEA; color:#8A1A1A; }
+.sem-gris   { background:var(--surface2); color:var(--text3); }
+.ped-card { border:1px solid var(--border); border-radius:var(--radius-lg); background:var(--surface); margin-bottom:12px; overflow:hidden; }
+.ped-card-head { padding:14px 16px; display:flex; align-items:flex-start; justify-content:space-between; gap:10px; cursor:pointer; }
+.ped-card-head:hover { background:var(--surface2); }
+.ped-card-body { padding:0 16px 14px; border-top:1px solid var(--border); }
+.ped-prog-bar { height:6px; background:var(--surface2); border-radius:3px; margin:4px 0 2px; overflow:hidden; }
+.ped-prog-fill { height:100%; border-radius:3px; transition:width .4s; }
+.ped-meta { font-size:11px; color:var(--text3); display:flex; gap:12px; flex-wrap:wrap; margin-top:4px; }
+.ped-linea-row { display:grid; grid-template-columns:1fr 80px 80px 80px 90px; gap:8px; align-items:center; padding:8px 0; border-bottom:1px solid var(--border); font-size:12px; }
+.ped-linea-row:last-child { border-bottom:none; }
+.ped-linea-head { font-size:10px; font-weight:600; color:var(--text3); text-transform:uppercase; letter-spacing:.05em; }
+.kpi-ped { background:var(--surface); border:1px solid var(--border); border-radius:var(--radius-lg); padding:14px 16px; }
+.kpi-ped-val { font-size:26px; font-weight:700; font-family:'DM Mono',monospace; letter-spacing:-.03em; }
+.kpi-ped-lbl { font-size:10px; color:var(--text3); text-transform:uppercase; letter-spacing:.05em; margin-top:2px; }
+.tabs { display:flex; gap:4px; margin-bottom:16px; background:var(--surface2); padding:4px; border-radius:var(--radius); }
+.tab-btn { flex:1; padding:7px; border:none; background:none; border-radius:6px; font-size:12px; font-weight:500; color:var(--text2); cursor:pointer; font-family:'DM Sans',sans-serif; transition:all .15s; }
+.tab-btn.active { background:var(--surface); color:var(--text); box-shadow:0 1px 3px rgba(0,0,0,.1); }
+
 /* MODO CONTADOR */
 .counter-display {
   display:flex;align-items:center;justify-content:center;gap:20px;
@@ -324,6 +349,11 @@ tbody tr:hover td { background: var(--surface2); }
   </div>
   <div class="nav-item" onclick="go('embarques',this)">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 17H3a2 2 0 01-2-2V5a2 2 0 012-2h11a2 2 0 012 2v3"/><rect x="9" y="11" width="14" height="10" rx="2"/><circle cx="12" cy="21" r="1"/><circle cx="20" cy="21" r="1"/></svg>Embarques PT
+  </div>
+
+  <div class="sidebar-section">Clientes</div>
+  <div class="nav-item" onclick="go('pedidos',this)">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14,2 14,8 20,8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><line x1="10" y1="9" x2="8" y2="9"/></svg>Pedidos
   </div>
 
   <div class="sidebar-section">Auditoría</div>
@@ -718,6 +748,75 @@ tbody tr:hover td { background: var(--surface2); }
   </div>
 </div>
 
+<!-- PEDIDOS DE CLIENTES -->
+<div class="page" id="p-pedidos">
+  <div class="page-header">
+    <div>
+      <div class="page-title">Pedidos de clientes</div>
+      <div class="page-subtitle" id="ped-subtitle">Cargando...</div>
+    </div>
+    <button class="btn btn-primary" onclick="toggleCard('form-ped')">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>Nuevo pedido
+    </button>
+  </div>
+
+  <!-- KPIs -->
+  <div class="stats-grid" id="ped-kpis" style="grid-template-columns:repeat(auto-fit,minmax(130px,1fr));margin-bottom:18px"></div>
+
+  <!-- Formulario nuevo pedido -->
+  <div class="card" id="form-ped" style="display:none;margin-bottom:16px">
+    <div class="card-header"><div class="card-title">Registrar pedido</div></div>
+    <div id="al-ped"></div>
+    <div class="form-grid">
+      <div class="form-group"><label>Folio pedido</label><input id="ped-folio" placeholder="PED-2026-001"/></div>
+      <div class="form-group"><label>Cliente</label><input id="ped-cliente" placeholder="Nombre del cliente"/></div>
+      <div class="form-group"><label>Fecha pedido</label><input id="ped-fecha-ped" type="date"/></div>
+      <div class="form-group"><label>Fecha prometida de entrega</label><input id="ped-fecha-prom" type="date"/></div>
+      <div class="form-group"><label>Canal</label>
+        <select id="ped-canal">
+          <option>WhatsApp</option><option>Correo</option><option>Llamada</option><option>En persona</option><option>Otro</option>
+        </select>
+      </div>
+      <div class="form-group"><label>Prioridad</label>
+        <select id="ped-prioridad">
+          <option value="Normal">Normal</option><option value="Alta">Alta</option><option value="Urgente">Urgente</option>
+        </select>
+      </div>
+      <div class="form-group full-col"><label>Notas / instrucciones especiales</label><textarea id="ped-notas" placeholder="Condiciones de entrega, empaque, etc."></textarea></div>
+    </div>
+
+    <!-- Líneas de pedido -->
+    <div style="margin:0 0 10px;padding:12px 0 0;border-top:1px solid var(--border)">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+        <div class="card-title">Líneas del pedido</div>
+        <button class="btn btn-sm" onclick="addLineaPed()" style="background:var(--accent-light);color:var(--accent);border-color:var(--accent)">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>Agregar producto
+        </button>
+      </div>
+      <div id="ped-lineas-wrap">
+        <!-- líneas dinámicas -->
+      </div>
+    </div>
+
+    <div class="btn-row">
+      <button class="btn" onclick="toggleCard('form-ped');resetFormPed()">Cancelar</button>
+      <button class="btn btn-primary" onclick="savePedido()">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20,6 9,17 4,12"/></svg>Guardar pedido
+      </button>
+    </div>
+  </div>
+
+  <!-- Tabs: Activos / Historial -->
+  <div class="tabs">
+    <button class="tab-btn active" id="tab-ped-activos" onclick="switchTabPed('activos')">📋 Activos</button>
+    <button class="tab-btn" id="tab-ped-hist" onclick="switchTabPed('historial')">✓ Entregados</button>
+    <button class="tab-btn" id="tab-ped-alerta" onclick="switchTabPed('alertas')">🚨 Alertas</button>
+  </div>
+
+  <!-- Lista de pedidos -->
+  <div id="ped-lista"></div>
+</div>
+
 <!-- TRAZABILIDAD -->
 <div class="page" id="p-traz">
   <div class="page-header"><div class="page-title">Log de trazabilidad</div></div>
@@ -790,7 +889,7 @@ tbody tr:hover td { background: var(--surface2); }
 <script>
 const API = 'https://script.google.com/macros/s/AKfycbzz5JTyqGFYyHTusKfobaxnPYACvtD3TVEJICJu9S6NS_Cd3F2rPaGJt8RbSRMEp0ol/exec';
 
-let db = { materiales:[], productos:[], maquinas:[], ops:[], registros:[], entradas:[], movimientos:[], consumos:[], embarques:[], paros:[], formulas:[] };
+let db = { materiales:[], productos:[], maquinas:[], ops:[], registros:[], entradas:[], movimientos:[], consumos:[], embarques:[], paros:[], formulas:[], pedidos:[], lineasPedido:[] };
 
 function uid(){ return Math.random().toString(36).substr(2,8); }
 function today(){ return new Date().toISOString().split('T')[0]; }
@@ -866,6 +965,8 @@ async function loadAll(){
   db.embarques  = res.embarques  || [];
   db.paros      = res.paros      || [];
   db.formulas   = res.formulas   || [];
+  db.pedidos    = res.pedidos    || [];
+  db.lineasPedido = res.lineasPedido || [];
   showGlobal('✓ Datos sincronizados desde Google Sheets', 'ok', 2500);
   const cur = document.querySelector('.nav-item.active');
   if(cur){ const m = cur.getAttribute('onclick').match(/'([^']+)'/); if(m) render(m[1]); }
@@ -884,6 +985,7 @@ function render(id){
   else if(id==='consumos') renderConsumos();
   else if(id==='embarques') renderEmbarques();
   else if(id==='paros') renderParos();
+  else if(id==='pedidos') renderPedidos();
 }
 
 function prodName(id){ const p=db.productos.find(x=>x['Prod ID']===id||x.ProdID===id); return p?.Descripcion||id; }
@@ -1206,9 +1308,12 @@ function aplicarPermisos(rol){
     if(nav) nav.style.display = (esAdmin || esAlmacen) ? '' : 'none';
   });
 
+  const navPedidos = document.querySelector(`.nav-item[onclick*="'pedidos'"]`);
+  if(navPedidos) navPedidos.style.display = (esAdmin || esAlmacen) ? '' : 'none';
+
   // Redirigir según rol
   if(esAlmacen){
-    go('embarques', document.querySelector('.nav-item[onclick*="\'embarques\'"]'));
+    go('pedidos', document.querySelector('.nav-item[onclick*="\'pedidos\'"]'));
   } else if(!esAdmin){
     go('prod', document.querySelector('.nav-item[onclick*="\'prod\'"]'));
   }
@@ -1954,7 +2059,383 @@ function imprimirBitacora(opid) {
 }
 
 
-// ── REPORTES ─────────────────────────────────────────────────
+
+// ══════════════════════════════════════════════════════
+// MÓDULO PEDIDOS DE CLIENTES
+// ══════════════════════════════════════════════════════
+
+let pedTabActual = 'activos';
+let pedLineasCount = 0;
+
+function switchTabPed(tab) {
+  pedTabActual = tab;
+  ['activos','hist','alerta'].forEach(t => {
+    const btn = document.getElementById('tab-ped-' + (t==='hist'?'hist':(t==='alerta'?'alerta':'activos')));
+    if(btn) btn.classList.remove('active');
+  });
+  const ids = {activos:'tab-ped-activos', historial:'tab-ped-hist', alertas:'tab-ped-alerta'};
+  const el = document.getElementById(ids[tab]);
+  if(el) el.classList.add('active');
+  renderListaPedidos();
+}
+
+function diasRestantes(fechaStr) {
+  if(!fechaStr) return null;
+  const hoy = new Date(); hoy.setHours(0,0,0,0);
+  const f = new Date(fechaStr); f.setHours(0,0,0,0);
+  return Math.ceil((f - hoy) / 86400000);
+}
+
+function semaforo(dias, entregado) {
+  if(entregado) return '<span class="semaforo sem-gris">✓ Entregado</span>';
+  if(dias === null) return '<span class="semaforo sem-gris">Sin fecha</span>';
+  if(dias < 0)  return `<span class="semaforo sem-rojo">⚠ ${Math.abs(dias)}d tarde</span>`;
+  if(dias === 0) return `<span class="semaforo sem-rojo">⚠ Hoy es el límite</span>`;
+  if(dias <= 3)  return `<span class="semaforo sem-amarillo">⏰ ${dias}d restantes</span>`;
+  return `<span class="semaforo sem-verde">✓ ${dias}d restantes</span>`;
+}
+
+function pctAvancePedido(pedidoId) {
+  const lineas = db.lineasPedido.filter(l => l.PedidoID === pedidoId);
+  if(!lineas.length) return 0;
+  let totalPed = 0, totalProd = 0;
+  lineas.forEach(l => {
+    const cantPed = parseFloat(l.Cantidad) || 0;
+    totalPed += cantPed;
+    // Sumar producción de OPs vinculadas a esta línea
+    const opLinea = db.ops.filter(o => o.PedidoID === pedidoId && (o.ProdID === l.ProdID || o['Prod ID'] === l.ProdID));
+    const producido = opLinea.reduce((s, op) => {
+      return s + db.registros.filter(r => r.OPID === op.OPID).reduce((s2,r) => s2+(parseFloat(r.CantidadProducida)||0), 0);
+    }, 0);
+    // También contar embarques ya realizados de este pedido
+    const embarcado = db.embarques.filter(e => e.PedidoID === pedidoId && (e.ProdID === l.ProdID || e['Prod ID'] === l.ProdID))
+      .reduce((s,e) => s+(parseFloat(e.Cantidad)||0), 0);
+    totalProd += Math.min(cantPed, Math.max(producido, embarcado));
+  });
+  return totalPed > 0 ? Math.round(totalProd / totalPed * 100) : 0;
+}
+
+function pctEmbarcadoPedido(pedidoId) {
+  const lineas = db.lineasPedido.filter(l => l.PedidoID === pedidoId);
+  if(!lineas.length) return 0;
+  let totalPed = 0, totalEmb = 0;
+  lineas.forEach(l => {
+    const cantPed = parseFloat(l.Cantidad) || 0;
+    totalPed += cantPed;
+    const embarcado = db.embarques.filter(e => (e.PedidoID === pedidoId || !e.PedidoID) && (e.ProdID === l.ProdID || e['Prod ID'] === l.ProdID))
+      .reduce((s,e) => s+(parseFloat(e.Cantidad)||0), 0);
+    totalEmb += Math.min(cantPed, embarcado);
+  });
+  return totalPed > 0 ? Math.round(totalEmb / totalPed * 100) : 0;
+}
+
+function renderPedidos() {
+  // KPIs
+  const total   = db.pedidos.length;
+  const activos = db.pedidos.filter(p => p.Estatus !== 'Entregado' && p.Estatus !== 'Cancelado').length;
+  const atrasados = db.pedidos.filter(p => {
+    if(p.Estatus === 'Entregado' || p.Estatus === 'Cancelado') return false;
+    return diasRestantes(p.FechaPrometida) !== null && diasRestantes(p.FechaPrometida) < 0;
+  }).length;
+  const urgentes = db.pedidos.filter(p => {
+    if(p.Estatus === 'Entregado' || p.Estatus === 'Cancelado') return false;
+    const d = diasRestantes(p.FechaPrometida);
+    return d !== null && d >= 0 && d <= 3;
+  }).length;
+  // Tiempo promedio entrega (pedidos entregados)
+  const entregados = db.pedidos.filter(p => p.Estatus === 'Entregado' && p.FechaEntrega && p.FechaPedido);
+  const tiempoProm = entregados.length
+    ? Math.round(entregados.reduce((s,p) => {
+        const d1 = new Date(p.FechaPedido), d2 = new Date(p.FechaEntrega);
+        return s + Math.ceil((d2-d1)/86400000);
+      }, 0) / entregados.length)
+    : null;
+
+  document.getElementById('ped-kpis').innerHTML = `
+    <div class="kpi-ped"><div class="kpi-ped-val">${activos}</div><div class="kpi-ped-lbl">Activos</div></div>
+    <div class="kpi-ped"><div class="kpi-ped-val ${atrasados>0?'red':''}" style="${atrasados>0?'color:var(--red)':''}">${atrasados}</div><div class="kpi-ped-lbl">Atrasados</div></div>
+    <div class="kpi-ped"><div class="kpi-ped-val ${urgentes>0?'amber':''}" style="${urgentes>0?'color:var(--amber)':''}">${urgentes}</div><div class="kpi-ped-lbl">Urgentes (≤3d)</div></div>
+    <div class="kpi-ped"><div class="kpi-ped-val">${total}</div><div class="kpi-ped-lbl">Total pedidos</div></div>
+    <div class="kpi-ped"><div class="kpi-ped-val" style="color:var(--accent)">${tiempoProm !== null ? tiempoProm+'d' : '—'}</div><div class="kpi-ped-lbl">Tiempo prom. entrega</div></div>`;
+
+  document.getElementById('ped-subtitle').textContent = `${activos} activos · ${atrasados} atrasados · ${db.pedidos.filter(p=>p.Estatus==='Entregado').length} entregados`;
+
+  // poblar selects de productos
+  const sp = document.getElementById('ped-fecha-ped');
+  if(sp && !sp.value) sp.value = today();
+  renderFormLineas();
+  renderListaPedidos();
+}
+
+function renderListaPedidos() {
+  let peds = [...db.pedidos];
+  if(pedTabActual === 'activos')   peds = peds.filter(p => p.Estatus !== 'Entregado' && p.Estatus !== 'Cancelado');
+  if(pedTabActual === 'historial') peds = peds.filter(p => p.Estatus === 'Entregado' || p.Estatus === 'Cancelado');
+  if(pedTabActual === 'alertas')   peds = peds.filter(p => {
+    if(p.Estatus === 'Entregado' || p.Estatus === 'Cancelado') return false;
+    const d = diasRestantes(p.FechaPrometida);
+    return d !== null && d <= 3;
+  });
+
+  // Ordenar: urgentes primero
+  peds.sort((a,b) => {
+    const da = diasRestantes(a.FechaPrometida) ?? 9999;
+    const db_ = diasRestantes(b.FechaPrometida) ?? 9999;
+    return da - db_;
+  });
+
+  const lista = document.getElementById('ped-lista');
+  if(!peds.length) {
+    lista.innerHTML = `<div class="card" style="text-align:center;padding:40px;color:var(--text3)">
+      ${pedTabActual==='activos'?'No hay pedidos activos. Crea el primero con el botón de arriba.':
+        pedTabActual==='alertas'?'✓ Sin pedidos urgentes ni atrasados.':'No hay pedidos entregados aún.'}</div>`;
+    return;
+  }
+
+  lista.innerHTML = peds.map(p => {
+    const lineas = db.lineasPedido.filter(l => l.PedidoID === p.PedidoID);
+    const diasR = diasRestantes(p.FechaPrometida);
+    const entregado = p.Estatus === 'Entregado';
+    const pctProd = pctAvancePedido(p.PedidoID);
+    const pctEmb  = pctEmbarcadoPedido(p.PedidoID);
+    const colProd = pctProd >= 100 ? 'var(--green)' : pctProd >= 50 ? '#D4851A' : 'var(--accent)';
+    const colEmb  = pctEmb >= 100 ? 'var(--green)' : pctEmb >= 50 ? '#D4851A' : 'var(--text3)';
+    const prioColor = p.Prioridad==='Urgente'?'var(--red)':p.Prioridad==='Alta'?'var(--amber)':'var(--text3)';
+
+    const lineasHTML = lineas.length ? `
+      <div style="margin-top:12px">
+        <div class="ped-linea-row ped-linea-head">
+          <span>Producto</span><span style="text-align:right">Pedido</span><span style="text-align:right">Producido</span><span style="text-align:right">Embarcado</span><span style="text-align:right">Avance</span>
+        </div>
+        ${lineas.map(l => {
+          const pid = l.ProdID;
+          const cantPed = parseFloat(l.Cantidad)||0;
+          const opsLinea = db.ops.filter(o => o.PedidoID === p.PedidoID && (o.ProdID===pid||o['Prod ID']===pid));
+          const prod = opsLinea.reduce((s,op)=>s+db.registros.filter(r=>r.OPID===op.OPID).reduce((s2,r)=>s2+(parseFloat(r.CantidadProducida)||0),0),0);
+          const emb  = db.embarques.filter(e=>(e.PedidoID===p.PedidoID||!e.PedidoID)&&(e.ProdID===pid||e['Prod ID']===pid)).reduce((s,e)=>s+(parseFloat(e.Cantidad)||0),0);
+          const pct  = cantPed>0?Math.min(100,Math.round(Math.max(prod,emb)/cantPed*100)):0;
+          const col  = pct>=100?'var(--green)':pct>=50?'var(--amber)':'var(--red)';
+          return `<div class="ped-linea-row">
+            <span style="font-weight:500">${prodName(pid)}</span>
+            <span style="text-align:right;font-family:'DM Mono',monospace">${cantPed}</span>
+            <span style="text-align:right;font-family:'DM Mono',monospace;color:var(--accent)">${prod}</span>
+            <span style="text-align:right;font-family:'DM Mono',monospace;color:var(--green)">${emb}</span>
+            <span style="text-align:right">
+              <span style="font-weight:600;color:${col};font-family:'DM Mono',monospace">${pct}%</span>
+            </span>
+          </div>`;
+        }).join('')}
+      </div>` : '<div style="color:var(--text3);font-size:12px;margin-top:8px">Sin líneas registradas.</div>';
+
+    return `<div class="ped-card">
+      <div class="ped-card-head" onclick="togglePedCard('pc-${p.PedidoID}')">
+        <div style="flex:1;min-width:0">
+          <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:4px">
+            <span style="font-weight:700;font-family:'DM Mono',monospace;font-size:13px">${p.Folio||p.PedidoID}</span>
+            <span style="font-size:12px;color:var(--text2)">${p.Cliente||'—'}</span>
+            ${semaforo(diasR, entregado)}
+            ${p.Prioridad&&p.Prioridad!=='Normal'?`<span style="font-size:10px;font-weight:700;color:${prioColor};background:${p.Prioridad==='Urgente'?'var(--red-bg)':'var(--amber-bg)'};padding:2px 8px;border-radius:10px">${p.Prioridad}</span>`:''}
+          </div>
+          <div class="ped-meta">
+            <span>📅 Pedido: ${p.FechaPedido||'—'}</span>
+            <span>🎯 Entrega: <strong>${p.FechaPrometida||'—'}</strong></span>
+            ${p.Canal?`<span>📲 ${p.Canal}</span>`:''}
+            ${p.FechaEntrega?`<span>✓ Entregado: ${p.FechaEntrega}</span>`:''}
+          </div>
+          <!-- Barra de progreso producción -->
+          <div style="margin-top:8px">
+            <div style="display:flex;justify-content:space-between;font-size:10px;color:var(--text3);margin-bottom:2px">
+              <span>Producción</span><span style="color:${colProd};font-weight:600">${pctProd}%</span>
+            </div>
+            <div class="ped-prog-bar"><div class="ped-prog-fill" style="width:${pctProd}%;background:${colProd}"></div></div>
+            <div style="display:flex;justify-content:space-between;font-size:10px;color:var(--text3);margin-bottom:2px;margin-top:6px">
+              <span>Embarcado</span><span style="color:${colEmb};font-weight:600">${pctEmb}%</span>
+            </div>
+            <div class="ped-prog-bar"><div class="ped-prog-fill" style="width:${pctEmb}%;background:${colEmb}"></div></div>
+          </div>
+        </div>
+        <div style="display:flex;flex-direction:column;align-items:flex-end;gap:6px;margin-left:10px;flex-shrink:0">
+          <span style="font-size:10px;color:var(--text3)">▾ detalle</span>
+        </div>
+      </div>
+      <div id="pc-${p.PedidoID}" style="display:none">
+        <div class="ped-card-body">
+          ${lineasHTML}
+          ${p.Notas?`<div style="margin-top:10px;font-size:12px;color:var(--text2);background:var(--surface2);padding:8px 10px;border-radius:6px">📝 ${p.Notas}</div>`:''}
+          <!-- Acciones -->
+          <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:14px;padding-top:10px;border-top:1px solid var(--border)">
+            ${!entregado?`
+            <button class="btn btn-sm" onclick="crearOPdesdePedido('${p.PedidoID}')" style="background:var(--accent-light);color:var(--accent);border-color:var(--accent)">
+              ➕ Crear OP vinculada
+            </button>
+            <button class="btn btn-sm" onclick="marcarEntregado('${p.PedidoID}')" style="background:var(--green-bg);color:var(--green);border-color:var(--green)">
+              ✓ Marcar entregado
+            </button>`:''}
+            <button class="btn btn-sm" onclick="verOPsPedido('${p.PedidoID}')" style="background:var(--surface2)">
+              📋 Ver OPs vinculadas
+            </button>
+            <button class="btn btn-sm del-ped-btn" data-pedid="${p.PedidoID}" style="background:var(--red-bg);color:var(--red);border-color:var(--red)">
+              ✕ Eliminar
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function togglePedCard(id) {
+  const el = document.getElementById(id);
+  if(el) el.style.display = el.style.display === 'none' ? 'block' : 'none';
+}
+
+function addLineaPed() {
+  pedLineasCount++;
+  const i = pedLineasCount;
+  const opts = db.productos.map(p => `<option value="${p['Prod ID']||p.ProdID}">${p.Descripcion}</option>`).join('');
+  const wrap = document.getElementById('ped-lineas-wrap');
+  const div = document.createElement('div');
+  div.className = 'ped-linea';
+  div.id = 'ped-linea-' + i;
+  div.innerHTML = `
+    <select class="ped-linea-prod">${opts}</select>
+    <input type="number" class="ped-linea-cant" placeholder="Cantidad" min="1"/>
+    <button class="btn btn-sm" onclick="document.getElementById('ped-linea-${i}').remove()" style="color:var(--red);background:var(--red-bg);border-color:var(--red);padding:6px">✕</button>`;
+  wrap.appendChild(div);
+}
+
+function renderFormLineas() {
+  const wrap = document.getElementById('ped-lineas-wrap');
+  if(wrap && !wrap.children.length) addLineaPed();
+}
+
+function resetFormPed() {
+  document.getElementById('ped-folio').value = '';
+  document.getElementById('ped-cliente').value = '';
+  document.getElementById('ped-notas').value = '';
+  document.getElementById('ped-fecha-prom').value = '';
+  document.getElementById('ped-fecha-ped').value = today();
+  document.getElementById('ped-lineas-wrap').innerHTML = '';
+  pedLineasCount = 0;
+}
+
+async function savePedido() {
+  const folio    = document.getElementById('ped-folio').value.trim();
+  const cliente  = document.getElementById('ped-cliente').value.trim();
+  const fechaPed = document.getElementById('ped-fecha-ped').value;
+  const fechaProm= document.getElementById('ped-fecha-prom').value;
+  const canal    = document.getElementById('ped-canal').value;
+  const prio     = document.getElementById('ped-prioridad').value;
+  const notas    = document.getElementById('ped-notas').value;
+
+  if(!folio || !cliente) { showAlert('al-ped','Completa folio y cliente.','err'); return; }
+  if(!fechaProm) { showAlert('al-ped','Ingresa la fecha prometida de entrega.','err'); return; }
+
+  // Recolectar líneas
+  const lineasEls = document.querySelectorAll('#ped-lineas-wrap .ped-linea');
+  const lineas = [];
+  lineasEls.forEach(el => {
+    const prod = el.querySelector('.ped-linea-prod')?.value;
+    const cant = parseFloat(el.querySelector('.ped-linea-cant')?.value) || 0;
+    if(prod && cant > 0) lineas.push({ ProdID: prod, Cantidad: cant });
+  });
+  if(!lineas.length) { showAlert('al-ped','Agrega al menos una línea de producto.','err'); return; }
+
+  showAlert('al-ped','Guardando pedido en Google Sheets...','inf');
+  const pedidoID = 'PED-' + uid();
+  const r = await apiPost({
+    action: 'savePedido',
+    PedidoID: pedidoID, Folio: folio, Cliente: cliente,
+    FechaPedido: fechaPed, FechaPrometida: fechaProm,
+    Canal: canal, Prioridad: prio, Notas: notas,
+    Estatus: 'Pendiente', CreatedAt: nowStr()
+  });
+  if(r.error) { showAlert('al-ped','Error: '+r.error,'err'); return; }
+
+  // Guardar líneas
+  for(const l of lineas) {
+    await apiPost({
+      action: 'saveLineaPedido',
+      LineaID: 'LIN-'+uid(), PedidoID: pedidoID,
+      ProdID: l.ProdID, Cantidad: l.Cantidad
+    });
+  }
+
+  showAlert('al-ped','✓ Pedido guardado correctamente.','ok');
+  resetFormPed();
+  toggleCard('form-ped');
+  setTimeout(()=>loadAll(), 1500);
+}
+
+async function marcarEntregado(pedidoId) {
+  if(!confirm('¿Marcar este pedido como entregado?')) return;
+  showGlobal('Actualizando pedido...','inf',0);
+  const r = await apiPost({ action:'updatePedidoEstatus', PedidoID: pedidoId, Estatus:'Entregado', FechaEntrega: today() });
+  if(r.error) { showGlobal('Error: '+r.error,'err',4000); return; }
+  const p = db.pedidos.find(x=>x.PedidoID===pedidoId);
+  if(p) { p.Estatus='Entregado'; p.FechaEntrega=today(); }
+  showGlobal('✓ Pedido marcado como entregado.','ok',2500);
+  renderPedidos();
+}
+
+async function borrarPedido(pedidoId) {
+  if(!confirm('¿Eliminar este pedido? No se puede deshacer.')) return;
+  showGlobal('Eliminando pedido...','inf',0);
+  const r = await apiPost({ action:'deletePedido', PedidoID: pedidoId });
+  if(r.error) { showGlobal('Error: '+r.error,'err',4000); return; }
+  db.pedidos = db.pedidos.filter(p=>p.PedidoID!==pedidoId);
+  db.lineasPedido = db.lineasPedido.filter(l=>l.PedidoID!==pedidoId);
+  showGlobal('✓ Pedido eliminado.','ok',2500);
+  renderPedidos();
+}
+
+function crearOPdesdePedido(pedidoId) {
+  const p = db.pedidos.find(x=>x.PedidoID===pedidoId);
+  if(!p) return;
+  const lineas = db.lineasPedido.filter(l=>l.PedidoID===pedidoId);
+  // Ir al módulo OPs y prellenar
+  go('ops', document.querySelector('.nav-item[onclick*="\'ops\'"]'));
+  const formCard = document.getElementById('form-op');
+  if(formCard) formCard.style.display = 'block';
+  // Prellenar campos
+  const folioOP = 'OP-PED-'+p.Folio.replace(/[^A-Z0-9]/gi,'-')+'-001';
+  setTimeout(()=>{
+    const opNum = document.getElementById('op-num');
+    if(opNum) opNum.value = folioOP;
+    const opNotas = document.getElementById('op-notas');
+    if(opNotas) opNotas.value = `Pedido: ${p.Folio} · Cliente: ${p.Cliente}`;
+    if(lineas.length) {
+      const opProd = document.getElementById('op-prod');
+      if(opProd) opProd.value = lineas[0].ProdID;
+      const opCant = document.getElementById('op-cant');
+      if(opCant) opCant.value = lineas[0].Cantidad;
+    }
+    const opFecha = document.getElementById('op-fecha');
+    if(opFecha) opFecha.value = p.FechaPrometida || today();
+    showGlobal(`Prellenando OP para pedido ${p.Folio}. Ajusta los datos y guarda.`, 'ok', 5000);
+  }, 300);
+}
+
+function verOPsPedido(pedidoId) {
+  const p = db.pedidos.find(x=>x.PedidoID===pedidoId);
+  const ops = db.ops.filter(o=>o.PedidoID===pedidoId||o.Notas?.includes(p?.Folio||'__NADA__'));
+  if(!ops.length) {
+    showGlobal('No hay OPs vinculadas a este pedido. Usa "Crear OP vinculada".','inf',4000);
+    return;
+  }
+  const lista = ops.map(o=>`${o.NumeroOP} (${o.Estatus})`).join(', ');
+  showGlobal(`OPs vinculadas: ${lista}`, 'ok', 6000);
+}
+
+// Escuchar evento borrar pedido
+document.addEventListener('click', function(e) {
+  if(e.target.classList.contains('del-ped-btn')) {
+    const pedid = e.target.getAttribute('data-pedid');
+    borrarPedido(pedid);
+  }
+});
+
+
 let repCharts = {};
 
 function parseFecha(str) {
