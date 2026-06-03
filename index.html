@@ -441,7 +441,7 @@ tbody tr:hover td { background: var(--surface2); }
 <div class="page" id="p-ops">
   <div class="page-header">
     <div><div class="page-title">Órdenes de producción</div></div>
-    <button class="btn btn-primary" onclick="toggleCard('form-op')">
+    <button class="btn btn-primary" onclick="opPedidoVinculado=null;toggleCard('form-op')">
       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>Nueva OP
     </button>
   </div>
@@ -1205,6 +1205,8 @@ async function borrarOP(opid, numop){
   renderOps();
 }
 
+let opPedidoVinculado = null; // recuerda el pedido al crear OP vinculada
+
 async function saveOP(){
   const num = document.getElementById('op-num').value.trim();
   const prodid = document.getElementById('op-prod').value;
@@ -1217,9 +1219,10 @@ async function saveOP(){
   const notas = document.getElementById('op-notas').value;
   if(!num||!cant){ showAlert('al-op','Completa número OP y cantidad.','err'); return; }
   showAlert('al-op','Guardando en Google Sheets...','inf');
-  const r = await apiPost({action:'saveOP',OPID:uid(),NumeroOP:num,ProdID:prodid,CantidadPlaneada:cant,MaquinaID:maqid,Turno:turno,FechaPlaneada:fecha,Lote:lote,Estatus:est,Notas:notas,CreatedBy:'Admin',CreatedAt:nowStr()});
+  const r = await apiPost({action:'saveOP',OPID:uid(),NumeroOP:num,ProdID:prodid,CantidadPlaneada:cant,MaquinaID:maqid,Turno:turno,FechaPlaneada:fecha,Lote:lote,Estatus:est,Notas:notas,PedidoID:(opPedidoVinculado||''),CreatedBy:'Admin',CreatedAt:nowStr()});
   if(r.error){ showAlert('al-op','Error: '+r.error,'err'); return; }
   showAlert('al-op','OP guardada correctamente en Google Sheets.','ok');
+  opPedidoVinculado = null; // limpiar después de guardar
   setTimeout(()=>{ toggleCard('form-op'); loadAll(); }, 1500);
 }
 
@@ -2392,6 +2395,7 @@ async function borrarPedido(pedidoId) {
 function crearOPdesdePedido(pedidoId) {
   const p = db.pedidos.find(x=>x.PedidoID===pedidoId);
   if(!p) return;
+  opPedidoVinculado = pedidoId; // ← recordar el pedido para guardarlo en la OP
   const lineas = db.lineasPedido.filter(l=>l.PedidoID===pedidoId);
   // Ir al módulo OPs y prellenar
   go('ops', document.querySelector('.nav-item[onclick*="\'ops\'"]'));
