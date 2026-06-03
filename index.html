@@ -1034,7 +1034,20 @@ function render(id){
 function prodName(id){ const p=db.productos.find(x=>x['Prod ID']===id||x.ProdID===id); return p?.Descripcion||id; }
 function maqName(id){ const m=db.maquinas.find(x=>x.MaqID===id||x['Maq ID']===id||x['Maquina ID']===id||x.Nombre===id); return m?.Nombre||id||'—'; }
 function matName(id){ const m=db.materiales.find(x=>x.MatID===id||x['Mat ID']===id); return m?.Descripcion||id; }
-function fmtFecha(f){ if(!f) return '—'; try{ const d=new Date(f); if(isNaN(d)) return f; return d.toLocaleDateString('es-MX',{day:'2-digit',month:'2-digit',year:'numeric'}); }catch(e){ return f; } }
+function fmtFecha(f){
+  if(!f) return '—';
+  try{
+    let s = f.toString().trim();
+    // Si es YYYY-MM-DD (con o sin hora), formatear sin pasar por UTC
+    const m = s.match(/^(\d{4})-(\d{2})-(\d{2})/);
+    if(m) return m[3]+'/'+m[2]+'/'+m[1];
+    // Si ya es dd/mm/yyyy mexicano
+    const mx = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/);
+    if(mx) return mx[1].padStart(2,'0')+'/'+mx[2].padStart(2,'0')+'/'+mx[3];
+    const d=new Date(f); if(isNaN(d)) return f;
+    return d.toLocaleDateString('es-MX',{day:'2-digit',month:'2-digit',year:'numeric'});
+  }catch(e){ return f; }
+}
 
 // Charts instances
 let chartTurnos = null, chartMaquinas = null;
@@ -2144,10 +2157,21 @@ function switchTabPed(tab) {
   renderListaPedidos();
 }
 
+function parseFechaLocal(fechaStr){
+  if(!fechaStr) return null;
+  const s = fechaStr.toString().trim();
+  const m = s.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if(m) return new Date(parseInt(m[1]), parseInt(m[2])-1, parseInt(m[3]));
+  const mx = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/);
+  if(mx) return new Date(parseInt(mx[3]), parseInt(mx[2])-1, parseInt(mx[1]));
+  const d = new Date(s);
+  return isNaN(d) ? null : d;
+}
+
 function diasRestantes(fechaStr) {
   if(!fechaStr) return null;
   const hoy = new Date(); hoy.setHours(0,0,0,0);
-  const f = new Date(fechaStr); f.setHours(0,0,0,0);
+  const f = parseFechaLocal(fechaStr); if(!f) return null; f.setHours(0,0,0,0);
   return Math.ceil((f - hoy) / 86400000);
 }
 
@@ -2772,15 +2796,15 @@ function generarReportePedidos(){
 // Helpers de fechas de pedidos
 function tiempoEntregaDias(p){
   if(!p.FechaPedido||!p.FechaEntrega)return null;
-  const d1=new Date(p.FechaPedido),d2=new Date(p.FechaEntrega);
-  if(isNaN(d1)||isNaN(d2))return null;
+  const d1=parseFechaLocal(p.FechaPedido),d2=parseFechaLocal(p.FechaEntrega);
+  if(!d1||!d2)return null;
   return Math.ceil((d2-d1)/86400000);
 }
 function diasEntrega(p){ return tiempoEntregaDias(p); }
 function fueATiempo(p){
   if(!p.FechaPrometida||!p.FechaEntrega)return true;
-  const prom=new Date(p.FechaPrometida),ent=new Date(p.FechaEntrega);
-  if(isNaN(prom)||isNaN(ent))return true;
+  const prom=parseFechaLocal(p.FechaPrometida),ent=parseFechaLocal(p.FechaEntrega);
+  if(!prom||!ent)return true;
   return ent<=prom;
 }
 
