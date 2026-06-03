@@ -837,12 +837,22 @@ tbody tr:hover td { background: var(--surface2); }
 <!-- REPORTES -->
 <div class="page" id="p-reportes">
   <div class="page-header">
-    <div><div class="page-title">Reportes</div><div class="page-subtitle" id="rep-rango-label">Selecciona un período</div></div>
+    <div><div class="page-title">Centro de Reportes</div><div class="page-subtitle" id="rep-rango-label">Selecciona un período</div></div>
     <div style="display:flex;gap:8px;flex-wrap:wrap">
       <button class="btn" onclick="window.print()" style="font-size:12px">🖨️ Imprimir</button>
-      <button class="btn btn-primary" onclick="exportarCSV()" style="font-size:12px">⬇ Descargar CSV</button>
+      <button class="btn btn-primary" onclick="exportarCSV()" style="font-size:12px">⬇ CSV Producción</button>
+      <button class="btn btn-primary" onclick="exportarCSVPedidos()" style="font-size:12px;background:var(--accent);border-color:var(--accent)">⬇ CSV Pedidos</button>
     </div>
   </div>
+
+  <!-- RESUMEN EJECUTIVO DEL DÍA -->
+  <div class="card" style="margin-bottom:16px;background:linear-gradient(135deg,#1A3A6B 0%,#2D4A8A 100%);border:none">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
+      <div style="color:#fff;font-weight:600;font-size:15px">📊 Resumen ejecutivo — Hoy <span id="rep-fecha-hoy" style="opacity:.7;font-weight:400;font-size:12px"></span></div>
+    </div>
+    <div id="rep-resumen-dia" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:10px"></div>
+  </div>
+
   <div class="card" style="padding:0;margin-bottom:16px">
     <div class="rep-filters">
       <div style="display:flex;flex-direction:column;gap:3px"><label>Desde</label><input type="date" id="rep-desde"/></div>
@@ -886,6 +896,34 @@ tbody tr:hover td { background: var(--surface2); }
   <div class="card">
     <div class="rep-section-title">🚚 Detalle de embarques</div>
     <div class="table-wrap"><table class="rep-table"><thead><tr><th>Fecha</th><th>Folio</th><th>Cliente</th><th>Producto</th><th>Cantidad</th></tr></thead><tbody id="rep-t-emb"></tbody></table></div>
+  </div>
+
+  <!-- ═══════ SECCIÓN PEDIDOS Y CLIENTES ═══════ -->
+  <div style="margin:28px 0 14px;padding-top:20px;border-top:2px solid var(--border)">
+    <div style="font-size:17px;font-weight:700;color:var(--text)">👥 Pedidos y Clientes</div>
+    <div style="font-size:12px;color:var(--text3)">Análisis comercial y cumplimiento de entregas</div>
+  </div>
+
+  <div class="rep-kpi-grid" id="rep-ped-kpis"></div>
+
+  <div class="two-col" style="margin-bottom:16px">
+    <div class="card"><div class="rep-section-title">📊 Pedidos por estatus</div><div class="chart-container"><canvas id="chart-rep-ped-estatus"></canvas></div></div>
+    <div class="card"><div class="rep-section-title">🎯 Puntualidad de entrega</div><div class="chart-container"><canvas id="chart-rep-ped-puntual"></canvas></div></div>
+  </div>
+
+  <div class="two-col" style="margin-bottom:16px">
+    <div class="card"><div class="rep-section-title">🏆 Top clientes por volumen</div><div class="chart-container"><canvas id="chart-rep-ped-clientes"></canvas></div></div>
+    <div class="card"><div class="rep-section-title">⏱️ Tiempo promedio de entrega (días)</div><div class="chart-container"><canvas id="chart-rep-ped-tiempo"></canvas></div></div>
+  </div>
+
+  <div class="card" style="margin-bottom:16px">
+    <div class="rep-section-title">📋 Cumplimiento por cliente</div>
+    <div class="table-wrap"><table class="rep-table"><thead><tr><th>Cliente</th><th>Pedidos</th><th>Entregados</th><th>A tiempo</th><th>Tarde</th><th>% Puntualidad</th><th>Días prom.</th></tr></thead><tbody id="rep-t-clientes"></tbody></table></div>
+  </div>
+
+  <div class="card">
+    <div class="rep-section-title">🚨 Pedidos en riesgo / atrasados</div>
+    <div class="table-wrap"><table class="rep-table"><thead><tr><th>Folio</th><th>Cliente</th><th>Entrega</th><th>Estatus</th><th>Producción</th><th>Días</th></tr></thead><tbody id="rep-t-ped-riesgo"></tbody></table></div>
   </div>
 </div>
 </main>
@@ -2608,6 +2646,141 @@ function generarReporte() {
   document.getElementById('rep-t-mp').innerHTML=consumos.length?[...consumos].map(c=>`<tr><td>${parseFecha(c.CreatedAt)}</td><td><strong>${db.ops.find(o=>o.OPID===c.OPID)?.NumeroOP||c.OPID||'—'}</strong></td><td>${matName(c.MatID||c['Mat ID'])}</td><td><strong>${parseFloat(c.Cantidad).toFixed(3)}</strong></td></tr>`).join(''):'<tr><td colspan="4" class="empty-row">Sin consumos en el período</td></tr>';
 
   document.getElementById('rep-t-emb').innerHTML=embs.length?[...embs].map(e=>`<tr><td>${e.FechaEmbarque||'—'}</td><td><strong>${e.Folio||'—'}</strong></td><td>${e.Cliente||'—'}</td><td>${prodName(e.ProdID||e['Prod ID'])}</td><td><strong>${e.Cantidad}</strong></td></tr>`).join(''):'<tr><td colspan="5" class="empty-row">Sin embarques en el período</td></tr>';
+
+  // ═══════ RESUMEN EJECUTIVO DEL DÍA ═══════
+  generarResumenDia();
+  // ═══════ REPORTES DE PEDIDOS ═══════
+  generarReportePedidos();
+}
+
+function generarResumenDia(){
+  const hoy = today();
+  const norm = v => parseFecha(v);
+  document.getElementById('rep-fecha-hoy').textContent = '· ' + fmtFecha(hoy);
+  // Producción de hoy
+  const regsHoy = db.registros.filter(r=>norm(r.CreatedAt)===hoy);
+  const prodHoy = regsHoy.reduce((s,r)=>s+(parseFloat(r.CantidadProducida)||0),0);
+  const mermaHoy = regsHoy.reduce((s,r)=>s+(parseFloat(r.Merma)||0),0);
+  // Embarques de hoy
+  const embsHoy = db.embarques.filter(e=>norm(e.FechaEmbarque)===hoy);
+  const embHoyCant = embsHoy.reduce((s,e)=>s+(parseFloat(e.Cantidad)||0),0);
+  // Producción por máquina hoy
+  const maqHoy = {};
+  regsHoy.forEach(r=>{const op=db.ops.find(o=>o.OPID===r.OPID);const mn=maqName(op?.MaquinaID||op?.['Maquina ID']||'—');maqHoy[mn]=(maqHoy[mn]||0)+(parseFloat(r.CantidadProducida)||0);});
+  const maqTop = Object.keys(maqHoy).sort((a,b)=>maqHoy[b]-maqHoy[a])[0];
+  // Paros activos
+  const parosAbiertos = db.paros.filter(p=>p.Resuelto===false||p.Resuelto==='FALSE'||p.Resuelto==='').length;
+  // Pedidos
+  const pedActivos = db.pedidos.filter(p=>p.Estatus!=='Entregado'&&p.Estatus!=='Cancelado').length;
+  const pedAtrasados = db.pedidos.filter(p=>{if(p.Estatus==='Entregado'||p.Estatus==='Cancelado')return false;const d=diasRestantes(p.FechaPrometida);return d!==null&&d<0;}).length;
+  const efic = prodHoy>0?Math.round((prodHoy-mermaHoy)/prodHoy*100):0;
+
+  const card = (val,lbl,color) => `<div style="background:rgba(255,255,255,.12);border-radius:10px;padding:12px 14px"><div style="font-size:22px;font-weight:700;font-family:'DM Mono',monospace;color:#fff">${val}</div><div style="font-size:10px;color:rgba(255,255,255,.75);text-transform:uppercase;letter-spacing:.04em;margin-top:2px">${lbl}</div></div>`;
+  document.getElementById('rep-resumen-dia').innerHTML =
+    card(prodHoy.toLocaleString('es-MX'),'Producido hoy') +
+    card(efic+'%','Eficiencia hoy') +
+    card(embHoyCant.toLocaleString('es-MX'),'Embarcado hoy') +
+    card(embsHoy.length,'Embarques hoy') +
+    card(maqTop||'—','Máquina líder') +
+    card(parosAbiertos,'Paros activos') +
+    card(pedActivos,'Pedidos activos') +
+    card(pedAtrasados,'Pedidos atrasados');
+}
+
+function generarReportePedidos(){
+  const peds = db.pedidos;
+  const entregados = peds.filter(p=>p.Estatus==='Entregado');
+  // KPIs
+  const totPed = peds.length;
+  const totEntreg = entregados.length;
+  const aTiempo = entregados.filter(p=>{const d=diasEntrega(p);return d!==null&&fueATiempo(p);}).length;
+  const tarde = totEntreg - aTiempo;
+  const puntualidad = totEntreg>0?Math.round(aTiempo/totEntreg*100):0;
+  const tiempos = entregados.map(p=>tiempoEntregaDias(p)).filter(d=>d!==null);
+  const tiempoProm = tiempos.length?Math.round(tiempos.reduce((s,d)=>s+d,0)/tiempos.length):null;
+  const enRiesgo = peds.filter(p=>{if(p.Estatus==='Entregado'||p.Estatus==='Cancelado')return false;const d=diasRestantes(p.FechaPrometida);return d!==null&&d<=3;}).length;
+
+  document.getElementById('rep-ped-kpis').innerHTML=`
+    <div class="rep-kpi"><div class="rep-kpi-val" style="color:var(--accent)">${totPed}</div><div class="rep-kpi-lbl">Total pedidos</div></div>
+    <div class="rep-kpi"><div class="rep-kpi-val" style="color:var(--green)">${totEntreg}</div><div class="rep-kpi-lbl">Entregados</div></div>
+    <div class="rep-kpi"><div class="rep-kpi-val" style="color:${puntualidad>=85?'var(--green)':puntualidad>=60?'var(--amber)':'var(--red)'}">${puntualidad}%</div><div class="rep-kpi-lbl">Puntualidad</div></div>
+    <div class="rep-kpi"><div class="rep-kpi-val" style="color:var(--green)">${aTiempo}</div><div class="rep-kpi-lbl">A tiempo</div></div>
+    <div class="rep-kpi"><div class="rep-kpi-val" style="color:var(--red)">${tarde}</div><div class="rep-kpi-lbl">Tarde</div></div>
+    <div class="rep-kpi"><div class="rep-kpi-val" style="color:var(--accent)">${tiempoProm!==null?tiempoProm+'d':'—'}</div><div class="rep-kpi-lbl">Tiempo prom.</div></div>
+    <div class="rep-kpi"><div class="rep-kpi-val" style="color:var(--amber)">${enRiesgo}</div><div class="rep-kpi-lbl">En riesgo</div></div>`;
+
+  // Gráfica: pedidos por estatus
+  const estMap={};peds.forEach(p=>{const e=p.Estatus||'Pendiente';estMap[e]=(estMap[e]||0)+1;});
+  const estKeys=Object.keys(estMap);
+  destroyChart('ped-estatus');
+  const ctxE=document.getElementById('chart-rep-ped-estatus');
+  if(ctxE){if(estKeys.length)repCharts['ped-estatus']=new Chart(ctxE,{type:'doughnut',data:{labels:estKeys,datasets:[{data:estKeys.map(k=>estMap[k]),backgroundColor:['#D4851A','#2D4A8A','#1A6B4A','#E24B4A','#8A8A8A']}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'bottom',labels:{font:{size:10}}}}}});else ctxE.parentElement.innerHTML='<p style="color:var(--text3);font-size:13px;text-align:center;padding:40px 0">Sin pedidos</p>';}
+
+  // Gráfica: puntualidad (a tiempo vs tarde)
+  destroyChart('ped-puntual');
+  const ctxP=document.getElementById('chart-rep-ped-puntual');
+  if(ctxP){if(totEntreg)repCharts['ped-puntual']=new Chart(ctxP,{type:'doughnut',data:{labels:['A tiempo','Tarde'],datasets:[{data:[aTiempo,tarde],backgroundColor:['#1A6B4A','#E24B4A']}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'bottom',labels:{font:{size:10}}}}}});else ctxP.parentElement.innerHTML='<p style="color:var(--text3);font-size:13px;text-align:center;padding:40px 0">Sin entregas registradas</p>';}
+
+  // Datos por cliente
+  const cli={};
+  peds.forEach(p=>{
+    const c=p.Cliente||'—';
+    if(!cli[c])cli[c]={total:0,entreg:0,aTiempo:0,tarde:0,dias:[],volumen:0};
+    cli[c].total++;
+    const lineas=db.lineasPedido.filter(l=>l.PedidoID===p.PedidoID);
+    cli[c].volumen+=lineas.reduce((s,l)=>s+(parseFloat(l.Cantidad)||0),0);
+    if(p.Estatus==='Entregado'){
+      cli[c].entreg++;
+      if(fueATiempo(p))cli[c].aTiempo++;else cli[c].tarde++;
+      const t=tiempoEntregaDias(p);if(t!==null)cli[c].dias.push(t);
+    }
+  });
+  const cliKeys=Object.keys(cli).sort((a,b)=>cli[b].volumen-cli[a].volumen);
+
+  // Gráfica: top clientes por volumen
+  const topCli=cliKeys.slice(0,8);
+  destroyChart('ped-clientes');
+  const ctxC=document.getElementById('chart-rep-ped-clientes');
+  if(ctxC){if(topCli.length)repCharts['ped-clientes']=new Chart(ctxC,{type:'bar',data:{labels:topCli,datasets:[{label:'Volumen',data:topCli.map(c=>cli[c].volumen),backgroundColor:'rgba(45,74,138,.75)',borderRadius:6}]},options:{indexAxis:'y',responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{beginAtZero:true,ticks:{font:{size:10}}},y:{ticks:{font:{size:10}}}}}});else ctxC.parentElement.innerHTML='<p style="color:var(--text3);font-size:13px;text-align:center;padding:40px 0">Sin clientes</p>';}
+
+  // Gráfica: tiempo promedio por cliente (solo con entregas)
+  const cliConDias=cliKeys.filter(c=>cli[c].dias.length);
+  destroyChart('ped-tiempo');
+  const ctxT=document.getElementById('chart-rep-ped-tiempo');
+  if(ctxT){if(cliConDias.length)repCharts['ped-tiempo']=new Chart(ctxT,{type:'bar',data:{labels:cliConDias.slice(0,8),datasets:[{label:'Días',data:cliConDias.slice(0,8).map(c=>Math.round(cli[c].dias.reduce((s,d)=>s+d,0)/cli[c].dias.length)),backgroundColor:'rgba(26,107,74,.75)',borderRadius:6}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{y:{beginAtZero:true,ticks:{font:{size:10}}},x:{ticks:{font:{size:10}}}}}});else ctxT.parentElement.innerHTML='<p style="color:var(--text3);font-size:13px;text-align:center;padding:40px 0">Sin entregas completadas</p>';}
+
+  // Tabla cumplimiento por cliente
+  document.getElementById('rep-t-clientes').innerHTML=cliKeys.length?cliKeys.map(c=>{
+    const x=cli[c];
+    const pct=x.entreg>0?Math.round(x.aTiempo/x.entreg*100):0;
+    const dprom=x.dias.length?Math.round(x.dias.reduce((s,d)=>s+d,0)/x.dias.length):'—';
+    const col=pct>=85?'color:var(--green)':pct>=60?'color:var(--amber)':'color:var(--red)';
+    return `<tr><td><strong>${c}</strong></td><td>${x.total}</td><td>${x.entreg}</td><td style="color:var(--green)">${x.aTiempo}</td><td style="color:var(--red)">${x.tarde}</td><td style="${col};font-weight:600">${x.entreg>0?pct+'%':'—'}</td><td>${dprom}${dprom!=='—'?'d':''}</td></tr>`;
+  }).join(''):'<tr><td colspan="7" class="empty-row">Sin pedidos registrados</td></tr>';
+
+  // Tabla pedidos en riesgo
+  const riesgo=peds.filter(p=>p.Estatus!=='Entregado'&&p.Estatus!=='Cancelado').sort((a,b)=>(diasRestantes(a.FechaPrometida)??9999)-(diasRestantes(b.FechaPrometida)??9999));
+  document.getElementById('rep-t-ped-riesgo').innerHTML=riesgo.length?riesgo.map(p=>{
+    const d=diasRestantes(p.FechaPrometida);
+    const pct=pctAvancePedido(p.PedidoID);
+    const dTxt=d===null?'—':d<0?`<span style="color:var(--red);font-weight:600">${Math.abs(d)}d tarde</span>`:d<=3?`<span style="color:var(--amber);font-weight:600">${d}d</span>`:`${d}d`;
+    return `<tr><td><strong>${p.Folio||p.PedidoID}</strong></td><td>${p.Cliente||'—'}</td><td>${fmtFecha(p.FechaPrometida)}</td><td>${p.Estatus||'—'}</td><td>${pct}%</td><td>${dTxt}</td></tr>`;
+  }).join(''):'<tr><td colspan="6" class="empty-row">✓ Sin pedidos en riesgo</td></tr>';
+}
+
+// Helpers de fechas de pedidos
+function tiempoEntregaDias(p){
+  if(!p.FechaPedido||!p.FechaEntrega)return null;
+  const d1=new Date(p.FechaPedido),d2=new Date(p.FechaEntrega);
+  if(isNaN(d1)||isNaN(d2))return null;
+  return Math.ceil((d2-d1)/86400000);
+}
+function diasEntrega(p){ return tiempoEntregaDias(p); }
+function fueATiempo(p){
+  if(!p.FechaPrometida||!p.FechaEntrega)return true;
+  const prom=new Date(p.FechaPrometida),ent=new Date(p.FechaEntrega);
+  if(isNaN(prom)||isNaN(ent))return true;
+  return ent<=prom;
 }
 
 function exportarCSV() {
@@ -2619,6 +2792,30 @@ function exportarCSV() {
   const url=URL.createObjectURL(blob);
   const a=document.createElement('a');
   a.href=url;a.download='reporte_'+desde+'_'+hasta+'.csv';a.click();URL.revokeObjectURL(url);
+}
+
+function exportarCSVPedidos() {
+  let csv='Folio,Cliente,FechaPedido,FechaPrometida,FechaEntrega,Estatus,Prioridad,Canal,Producto,Cantidad,Producido,%Avance,DiasEntrega,ATiempo\n';
+  db.pedidos.forEach(p=>{
+    const lineas=db.lineasPedido.filter(l=>l.PedidoID===p.PedidoID);
+    const pct=pctAvancePedido(p.PedidoID);
+    const dias=tiempoEntregaDias(p);
+    const aTiempo=p.Estatus==='Entregado'?(fueATiempo(p)?'Sí':'No'):'';
+    if(!lineas.length){
+      csv+=[p.Folio||'',(p.Cliente||'').replace(/,/g,' '),parseFecha(p.FechaPedido),parseFecha(p.FechaPrometida),parseFecha(p.FechaEntrega),p.Estatus||'',p.Prioridad||'',p.Canal||'','','','',pct+'%',dias!==null?dias:'',aTiempo].join(',')+'\n';
+    } else {
+      lineas.forEach(l=>{
+        const pid=l.ProdID;
+        const opsL=db.ops.filter(o=>o.PedidoID===p.PedidoID&&(o.ProdID===pid||o['Prod ID']===pid));
+        const prod=opsL.reduce((s,op)=>s+db.registros.filter(r=>r.OPID===op.OPID).reduce((s2,r)=>s2+(parseFloat(r.CantidadProducida)||0),0),0);
+        csv+=[p.Folio||'',(p.Cliente||'').replace(/,/g,' '),parseFecha(p.FechaPedido),parseFecha(p.FechaPrometida),parseFecha(p.FechaEntrega),p.Estatus||'',p.Prioridad||'',p.Canal||'',(prodName(pid)||'').replace(/,/g,' '),l.Cantidad||0,prod,pct+'%',dias!==null?dias:'',aTiempo].join(',')+'\n';
+      });
+    }
+  });
+  const blob=new Blob(['\ufeff'+csv],{type:'text/csv;charset=utf-8;'});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement('a');
+  a.href=url;a.download='reporte_pedidos_'+today()+'.csv';a.click();URL.revokeObjectURL(url);
 }
 
 function renderReportes(){ initRepFiltros(); generarReporte(); }
