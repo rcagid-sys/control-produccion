@@ -2099,19 +2099,22 @@ function semaforo(dias, entregado) {
 }
 
 function pctAvancePedido(pedidoId) {
-  const lineas = db.lineasPedido.filter(l => l.PedidoID === pedidoId);
+  const norm = v => String(v==null?'':v).trim();
+  const pid_ = norm(pedidoId);
+  const lineas = db.lineasPedido.filter(l => norm(l.PedidoID) === pid_);
   if(!lineas.length) return 0;
   let totalPed = 0, totalProd = 0;
   lineas.forEach(l => {
     const cantPed = parseFloat(l.Cantidad) || 0;
     totalPed += cantPed;
+    const lprod = norm(l.ProdID || l['Prod ID']);
     // Sumar producción de OPs vinculadas a esta línea
-    const opLinea = db.ops.filter(o => o.PedidoID === pedidoId && (o.ProdID === l.ProdID || o['Prod ID'] === l.ProdID));
+    const opLinea = db.ops.filter(o => norm(o.PedidoID) === pid_ && norm(o.ProdID || o['Prod ID']) === lprod);
     const producido = opLinea.reduce((s, op) => {
-      return s + db.registros.filter(r => r.OPID === op.OPID).reduce((s2,r) => s2+(parseFloat(r.CantidadProducida)||0), 0);
+      return s + db.registros.filter(r => norm(r.OPID) === norm(op.OPID)).reduce((s2,r) => s2+(parseFloat(r.CantidadProducida)||0), 0);
     }, 0);
-    // También contar embarques ya realizados de este pedido
-    const embarcado = db.embarques.filter(e => e.PedidoID === pedidoId && (e.ProdID === l.ProdID || e['Prod ID'] === l.ProdID))
+    // Embarques explícitamente vinculados a este pedido
+    const embarcado = db.embarques.filter(e => norm(e.PedidoID) === pid_ && norm(e.ProdID || e['Prod ID']) === lprod)
       .reduce((s,e) => s+(parseFloat(e.Cantidad)||0), 0);
     totalProd += Math.min(cantPed, Math.max(producido, embarcado));
   });
@@ -2119,13 +2122,17 @@ function pctAvancePedido(pedidoId) {
 }
 
 function pctEmbarcadoPedido(pedidoId) {
-  const lineas = db.lineasPedido.filter(l => l.PedidoID === pedidoId);
+  const norm = v => String(v==null?'':v).trim();
+  const pid_ = norm(pedidoId);
+  const lineas = db.lineasPedido.filter(l => norm(l.PedidoID) === pid_);
   if(!lineas.length) return 0;
   let totalPed = 0, totalEmb = 0;
   lineas.forEach(l => {
     const cantPed = parseFloat(l.Cantidad) || 0;
     totalPed += cantPed;
-    const embarcado = db.embarques.filter(e => (e.PedidoID === pedidoId || !e.PedidoID) && (e.ProdID === l.ProdID || e['Prod ID'] === l.ProdID))
+    const lprod = norm(l.ProdID || l['Prod ID']);
+    // Solo embarques EXPLÍCITAMENTE vinculados a este pedido (no los huérfanos)
+    const embarcado = db.embarques.filter(e => norm(e.PedidoID) === pid_ && norm(e.ProdID || e['Prod ID']) === lprod)
       .reduce((s,e) => s+(parseFloat(e.Cantidad)||0), 0);
     totalEmb += Math.min(cantPed, embarcado);
   });
@@ -2211,11 +2218,14 @@ function renderListaPedidos() {
           <span>Producto</span><span style="text-align:right">Pedido</span><span style="text-align:right">Producido</span><span style="text-align:right">Embarcado</span><span style="text-align:right">Avance</span>
         </div>
         ${lineas.map(l => {
+          const norm = v => String(v==null?'':v).trim();
           const pid = l.ProdID;
+          const pidN = norm(pid);
+          const pedN = norm(p.PedidoID);
           const cantPed = parseFloat(l.Cantidad)||0;
-          const opsLinea = db.ops.filter(o => o.PedidoID === p.PedidoID && (o.ProdID===pid||o['Prod ID']===pid));
-          const prod = opsLinea.reduce((s,op)=>s+db.registros.filter(r=>r.OPID===op.OPID).reduce((s2,r)=>s2+(parseFloat(r.CantidadProducida)||0),0),0);
-          const emb  = db.embarques.filter(e=>(e.PedidoID===p.PedidoID||!e.PedidoID)&&(e.ProdID===pid||e['Prod ID']===pid)).reduce((s,e)=>s+(parseFloat(e.Cantidad)||0),0);
+          const opsLinea = db.ops.filter(o => norm(o.PedidoID) === pedN && norm(o.ProdID||o['Prod ID'])===pidN);
+          const prod = opsLinea.reduce((s,op)=>s+db.registros.filter(r=>norm(r.OPID)===norm(op.OPID)).reduce((s2,r)=>s2+(parseFloat(r.CantidadProducida)||0),0),0);
+          const emb  = db.embarques.filter(e=>norm(e.PedidoID)===pedN&&norm(e.ProdID||e['Prod ID'])===pidN).reduce((s,e)=>s+(parseFloat(e.Cantidad)||0),0);
           const pct  = cantPed>0?Math.min(100,Math.round(Math.max(prod,emb)/cantPed*100)):0;
           const col  = pct>=100?'var(--green)':pct>=50?'var(--amber)':'var(--red)';
           return `<div class="ped-linea-row">
