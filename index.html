@@ -237,6 +237,14 @@ tbody tr:hover td { background: var(--surface2); }
 .tab-btn { flex:1; padding:7px; border:none; background:none; border-radius:6px; font-size:12px; font-weight:500; color:var(--text2); cursor:pointer; font-family:'DM Sans',sans-serif; transition:all .15s; }
 .tab-btn.active { background:var(--surface); color:var(--text); box-shadow:0 1px 3px rgba(0,0,0,.1); }
 
+/* FILTROS OPS */
+.ops-filtros { display:flex; align-items:flex-end; gap:10px; flex-wrap:wrap; padding:14px 16px; border-bottom:1px solid var(--border); }
+.ops-filtros .fg { display:flex; flex-direction:column; gap:4px; }
+.ops-filtros label { font-size:10px; font-weight:600; color:var(--text3); text-transform:uppercase; letter-spacing:.04em; }
+.ops-filtros select, .ops-filtros input { padding:7px 10px; border:1px solid var(--border2); border-radius:var(--radius); font-size:12px; background:var(--surface); color:var(--text); outline:none; font-family:'DM Sans',sans-serif; }
+.ops-filtros input { min-width:160px; }
+.ops-resumen { font-size:12px; color:var(--text3); padding:0 2px; }
+
 /* MODO CONTADOR */
 .counter-display {
   display:flex;align-items:center;justify-content:center;gap:20px;
@@ -466,8 +474,35 @@ tbody tr:hover td { background: var(--surface2); }
       </button>
     </div>
   </div>
-  <div class="card">
-    <div class="table-wrap">
+  <div class="card" style="padding:0">
+    <div class="ops-filtros">
+      <div class="fg"><label>Estatus</label>
+        <select id="of-estatus" onchange="setFiltroOp('estatus',this.value)">
+          <option value="__activas">Activas (sin terminar)</option>
+          <option value="">Todas</option>
+          <option>Pendiente</option>
+          <option>En proceso</option>
+          <option>En pausa</option>
+          <option>Terminada</option>
+          <option>Cerrada</option>
+          <option>Cancelada</option>
+        </select>
+      </div>
+      <div class="fg"><label>Máquina</label>
+        <select id="of-maquina" onchange="setFiltroOp('maquina',this.value)"><option value="">Todas</option></select>
+      </div>
+      <div class="fg"><label>Turno</label>
+        <select id="of-turno" onchange="setFiltroOp('turno',this.value)">
+          <option value="">Todos</option><option>Mañana</option><option>Tarde</option><option>Noche</option>
+        </select>
+      </div>
+      <div class="fg" style="flex:1"><label>Buscar (OP, producto, lote, notas)</label>
+        <input id="of-busqueda" placeholder="Escribe para buscar..." oninput="setFiltroOp('busqueda',this.value)"/>
+      </div>
+      <button class="btn btn-sm" onclick="limpiarFiltrosOp()" style="margin-bottom:1px">✕ Limpiar</button>
+    </div>
+    <div style="padding:10px 16px 0"><span class="ops-resumen" id="ops-resumen"></span></div>
+    <div class="table-wrap" style="padding:6px 16px 16px">
       <table><thead><tr><th>Número OP</th><th>Producto</th><th>Avance</th><th>Máquina</th><th>Turno</th><th>Estatus</th><th>Fecha</th><th>Acción</th><th>QR</th></tr></thead>
       <tbody id="t-ops"></tbody></table>
     </div>
@@ -1202,6 +1237,40 @@ function renderDash(){
   }, 150);
 }
 
+let opFiltros = { estatus:'__activas', maquina:'', turno:'', busqueda:'' };
+
+function setFiltroOp(campo, valor){
+  opFiltros[campo] = valor;
+  renderOps();
+}
+
+function limpiarFiltrosOp(){
+  opFiltros = { estatus:'__activas', maquina:'', turno:'', busqueda:'' };
+  const e=document.getElementById('of-estatus'); if(e) e.value='__activas';
+  const m=document.getElementById('of-maquina'); if(m) m.value='';
+  const t=document.getElementById('of-turno'); if(t) t.value='';
+  const b=document.getElementById('of-busqueda'); if(b) b.value='';
+  renderOps();
+}
+
+function aplicarFiltrosOps(ops){
+  return ops.filter(o=>{
+    if(opFiltros.estatus === '__activas'){
+      if(o.Estatus==='Terminada' || o.Estatus==='Cerrada' || o.Estatus==='Cancelada') return false;
+    } else if(opFiltros.estatus && o.Estatus !== opFiltros.estatus){
+      return false;
+    }
+    if(opFiltros.maquina && (o.MaquinaID||o['Maquina ID']||o['MaquinaID']) !== opFiltros.maquina) return false;
+    if(opFiltros.turno && o.Turno !== opFiltros.turno) return false;
+    if(opFiltros.busqueda){
+      const q = opFiltros.busqueda.toLowerCase().trim();
+      const texto = ((o.NumeroOP||'')+' '+prodName(o.ProdID||o['Prod ID'])+' '+(o.Lote||'')+' '+(o.Notas||'')).toLowerCase();
+      if(!texto.includes(q)) return false;
+    }
+    return true;
+  });
+}
+
 function renderOps(){
   const sp = document.getElementById('op-prod');
   if(sp) sp.innerHTML = db.productos.map(p=>`<option value="${p['Prod ID']||p.ProdID}">${p.Descripcion}</option>`).join('');
@@ -1209,9 +1278,32 @@ function renderOps(){
   if(sm) sm.innerHTML = db.maquinas.map(m=>`<option value="${m['Maquina ID']||m.MaqID||m['Maq ID']}">${m.Nombre}</option>`).join('');
   const of = document.getElementById('op-fecha');
   if(of&&!of.value) of.value = today();
+
+  const ofMaq = document.getElementById('of-maquina');
+  if(ofMaq && ofMaq.options.length<=1){
+    ofMaq.innerHTML = '<option value="">Todas</option>' + db.maquinas.map(m=>`<option value="${m['Maquina ID']||m.MaqID||m['Maq ID']}">${m.Nombre}</option>`).join('');
+    ofMaq.value = opFiltros.maquina;
+  }
+
   const tb = document.getElementById('t-ops');
-  if(!db.ops.length){ tb.innerHTML='<tr><td colspan="8" class="empty-row">Sin órdenes. Crea la primera OP.</td></tr>'; return; }
-  tb.innerHTML = db.ops.map(o=>{
+  if(!db.ops.length){ tb.innerHTML='<tr><td colspan="9" class="empty-row">Sin órdenes. Crea la primera OP.</td></tr>'; const rs0=document.getElementById('ops-resumen'); if(rs0) rs0.textContent=''; return; }
+
+  const opsVisibles = aplicarFiltrosOps(db.ops);
+
+  const rs = document.getElementById('ops-resumen');
+  if(rs){
+    const cont = {};
+    db.ops.forEach(o=>{ const e=o.Estatus||'Sin estatus'; cont[e]=(cont[e]||0)+1; });
+    const partes = Object.keys(cont).map(e=>`${e}: ${cont[e]}`);
+    rs.textContent = `Mostrando ${opsVisibles.length} de ${db.ops.length} OPs · ${partes.join(' · ')}`;
+  }
+
+  if(!opsVisibles.length){
+    tb.innerHTML='<tr><td colspan="9" class="empty-row">Ninguna OP coincide con los filtros. Usa "Limpiar".</td></tr>';
+    return;
+  }
+
+  tb.innerHTML = opsVisibles.map(o=>{
     const bc = o.Estatus==='Cerrada'||o.Estatus==='Terminada'?'badge-green':o.Estatus==='En proceso'?'badge-blue':o.Estatus==='Cancelada'?'badge-red':'badge-gray';
     const regs = db.registros.filter(r=>r.OPID===o.OPID);
     const prod = regs.reduce((s,r)=>s+(parseFloat(r.CantidadProducida)||0),0);
