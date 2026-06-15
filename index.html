@@ -237,6 +237,18 @@ tbody tr:hover td { background: var(--surface2); }
 .tab-btn { flex:1; padding:7px; border:none; background:none; border-radius:6px; font-size:12px; font-weight:500; color:var(--text2); cursor:pointer; font-family:'DM Sans',sans-serif; transition:all .15s; }
 .tab-btn.active { background:var(--surface); color:var(--text); box-shadow:0 1px 3px rgba(0,0,0,.1); }
 
+/* SALIDA MP */
+.smp-linea { display:grid; grid-template-columns:1fr 110px 110px 36px; gap:8px; align-items:center; margin-bottom:8px; }
+.smp-linea:last-child { margin-bottom:0; }
+
+/* FILTROS OPS */
+.ops-filtros { display:flex; align-items:flex-end; gap:10px; flex-wrap:wrap; padding:14px 16px; border-bottom:1px solid var(--border); }
+.ops-filtros .fg { display:flex; flex-direction:column; gap:4px; }
+.ops-filtros label { font-size:10px; font-weight:600; color:var(--text3); text-transform:uppercase; letter-spacing:.04em; }
+.ops-filtros select, .ops-filtros input { padding:7px 10px; border:1px solid var(--border2); border-radius:var(--radius); font-size:12px; background:var(--surface); color:var(--text); outline:none; font-family:'DM Sans',sans-serif; }
+.ops-filtros input { min-width:160px; }
+.ops-resumen { font-size:12px; color:var(--text3); padding:0 2px; }
+
 /* MODO CONTADOR */
 .counter-display {
   display:flex;align-items:center;justify-content:center;gap:20px;
@@ -346,6 +358,9 @@ tbody tr:hover td { background: var(--surface2); }
   </div>
   <div class="nav-item" onclick="go('invpt',this)">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 16V8a2 2 0 00-1-1.73l-7-4a2 2 0 00-2 0l-7 4A2 2 0 003 8v8a2 2 0 001 1.73l7 4a2 2 0 002 0l7-4A2 2 0 0021 16z"/></svg>Inv. PT
+  </div>
+  <div class="nav-item" onclick="go('salidamp',this)">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 3v4a1 1 0 001 1h4"/><path d="M17 21H7a2 2 0 01-2-2V5a2 2 0 012-2h7l5 5v11a2 2 0 01-2 2z"/><line x1="9" y1="13" x2="15" y2="13"/><line x1="9" y1="17" x2="13" y2="17"/></svg>Salida MP
   </div>
   <div class="nav-item" onclick="go('embarques',this)">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 17H3a2 2 0 01-2-2V5a2 2 0 012-2h11a2 2 0 012 2v3"/><rect x="9" y="11" width="14" height="10" rx="2"/><circle cx="12" cy="21" r="1"/><circle cx="20" cy="21" r="1"/></svg>Embarques PT
@@ -466,8 +481,35 @@ tbody tr:hover td { background: var(--surface2); }
       </button>
     </div>
   </div>
-  <div class="card">
-    <div class="table-wrap">
+  <div class="card" style="padding:0">
+    <div class="ops-filtros">
+      <div class="fg"><label>Estatus</label>
+        <select id="of-estatus" onchange="setFiltroOp('estatus',this.value)">
+          <option value="__activas">Activas (sin terminar)</option>
+          <option value="">Todas</option>
+          <option>Pendiente</option>
+          <option>En proceso</option>
+          <option>En pausa</option>
+          <option>Terminada</option>
+          <option>Cerrada</option>
+          <option>Cancelada</option>
+        </select>
+      </div>
+      <div class="fg"><label>Máquina</label>
+        <select id="of-maquina" onchange="setFiltroOp('maquina',this.value)"><option value="">Todas</option></select>
+      </div>
+      <div class="fg"><label>Turno</label>
+        <select id="of-turno" onchange="setFiltroOp('turno',this.value)">
+          <option value="">Todos</option><option>Mañana</option><option>Tarde</option><option>Noche</option>
+        </select>
+      </div>
+      <div class="fg" style="flex:1"><label>Buscar (OP, producto, lote, notas)</label>
+        <input id="of-busqueda" placeholder="Escribe para buscar..." oninput="setFiltroOp('busqueda',this.value)"/>
+      </div>
+      <button class="btn btn-sm" onclick="limpiarFiltrosOp()" style="margin-bottom:1px">✕ Limpiar</button>
+    </div>
+    <div style="padding:10px 16px 0"><span class="ops-resumen" id="ops-resumen"></span></div>
+    <div class="table-wrap" style="padding:6px 16px 16px">
       <table><thead><tr><th>Número OP</th><th>Producto</th><th>Avance</th><th>Máquina</th><th>Turno</th><th>Estatus</th><th>Fecha</th><th>Acción</th><th>QR</th></tr></thead>
       <tbody id="t-ops"></tbody></table>
     </div>
@@ -753,6 +795,58 @@ tbody tr:hover td { background: var(--surface2); }
   </div>
 </div>
 
+<!-- SALIDA DE MP -->
+<div class="page" id="p-salidamp">
+  <div class="page-header">
+    <div>
+      <div class="page-title">Salida de materia prima</div>
+      <div class="page-subtitle">Vales de salida a producción (no afecta inventario)</div>
+    </div>
+    <button class="btn btn-primary" onclick="toggleCard('form-smp');resetFormSMP()">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>Nueva salida
+    </button>
+  </div>
+
+  <div class="card" id="form-smp" style="display:none">
+    <div class="card-header"><div class="card-title">Generar vale de salida</div></div>
+    <div id="al-smp"></div>
+    <div class="form-grid">
+      <div class="form-group"><label>Folio salida</label><input id="smp-folio" placeholder="VS-2026-001"/></div>
+      <div class="form-group"><label>Fecha</label><input id="smp-fecha" type="date"/></div>
+      <div class="form-group"><label>Orden de producción (destino)</label><select id="smp-op"></select></div>
+      <div class="form-group"><label>Máquina</label><select id="smp-maq"></select></div>
+      <div class="form-group"><label>Solicita</label><input id="smp-solicita" placeholder="Nombre de quien solicita"/></div>
+      <div class="form-group"><label>Entrega (almacén)</label><input id="smp-entrega" placeholder="Nombre de quien entrega"/></div>
+      <div class="form-group full-col"><label>Observaciones</label><textarea id="smp-obs" placeholder="Notas del vale..."></textarea></div>
+    </div>
+
+    <div style="margin:0 0 10px;padding:12px 0 0;border-top:1px solid var(--border)">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+        <div class="card-title">Materiales a entregar</div>
+        <button class="btn btn-sm" onclick="addLineaSMP()" style="background:var(--accent-light);color:var(--accent);border-color:var(--accent)">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>Agregar material
+        </button>
+      </div>
+      <div id="smp-lineas-wrap"></div>
+    </div>
+
+    <div class="btn-row">
+      <button class="btn" onclick="toggleCard('form-smp');resetFormSMP()">Cancelar</button>
+      <button class="btn btn-primary" onclick="saveSalidaMP()">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20,6 9,17 4,12"/></svg>Guardar vale
+      </button>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-header"><div class="card-title">Vales de salida recientes</div></div>
+    <div class="table-wrap">
+      <table><thead><tr><th>Folio</th><th>Fecha</th><th>OP destino</th><th>Materiales</th><th>Solicita</th><th>Acción</th></tr></thead>
+      <tbody id="t-salidamp"></tbody></table>
+    </div>
+  </div>
+</div>
+
 <!-- PEDIDOS DE CLIENTES -->
 <div class="page" id="p-pedidos">
   <div class="page-header">
@@ -932,7 +1026,7 @@ tbody tr:hover td { background: var(--surface2); }
 <script>
 const API = 'https://script.google.com/macros/s/AKfycbzz5JTyqGFYyHTusKfobaxnPYACvtD3TVEJICJu9S6NS_Cd3F2rPaGJt8RbSRMEp0ol/exec';
 
-let db = { materiales:[], productos:[], maquinas:[], ops:[], registros:[], entradas:[], movimientos:[], consumos:[], embarques:[], paros:[], formulas:[], pedidos:[], lineasPedido:[] };
+let db = { materiales:[], productos:[], maquinas:[], ops:[], registros:[], entradas:[], movimientos:[], consumos:[], embarques:[], paros:[], formulas:[], pedidos:[], lineasPedido:[], salidasMP:[], lineasSalidaMP:[] };
 
 function uid(){ return Math.random().toString(36).substr(2,8); }
 function today(){ const d=new Date(); return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); }
@@ -1010,6 +1104,8 @@ async function loadAll(){
   db.formulas   = res.formulas   || [];
   db.pedidos    = res.pedidos    || [];
   db.lineasPedido = res.lineasPedido || [];
+  db.salidasMP    = res.salidasMP    || [];
+  db.lineasSalidaMP = res.lineasSalidaMP || [];
   showGlobal('✓ Datos sincronizados desde Google Sheets', 'ok', 2500);
   const cur = document.querySelector('.nav-item.active');
   if(cur){ const m = cur.getAttribute('onclick').match(/'([^']+)'/); if(m) render(m[1]); }
@@ -1029,6 +1125,7 @@ function render(id){
   else if(id==='embarques') renderEmbarques();
   else if(id==='paros') renderParos();
   else if(id==='pedidos') renderPedidos();
+  else if(id==='salidamp') renderSalidaMP();
 }
 
 function prodName(id){ const p=db.productos.find(x=>x['Prod ID']===id||x.ProdID===id); return p?.Descripcion||id; }
@@ -1202,6 +1299,40 @@ function renderDash(){
   }, 150);
 }
 
+let opFiltros = { estatus:'__activas', maquina:'', turno:'', busqueda:'' };
+
+function setFiltroOp(campo, valor){
+  opFiltros[campo] = valor;
+  renderOps();
+}
+
+function limpiarFiltrosOp(){
+  opFiltros = { estatus:'__activas', maquina:'', turno:'', busqueda:'' };
+  const e=document.getElementById('of-estatus'); if(e) e.value='__activas';
+  const m=document.getElementById('of-maquina'); if(m) m.value='';
+  const t=document.getElementById('of-turno'); if(t) t.value='';
+  const b=document.getElementById('of-busqueda'); if(b) b.value='';
+  renderOps();
+}
+
+function aplicarFiltrosOps(ops){
+  return ops.filter(o=>{
+    if(opFiltros.estatus === '__activas'){
+      if(o.Estatus==='Terminada' || o.Estatus==='Cerrada' || o.Estatus==='Cancelada') return false;
+    } else if(opFiltros.estatus && o.Estatus !== opFiltros.estatus){
+      return false;
+    }
+    if(opFiltros.maquina && (o.MaquinaID||o['Maquina ID']||o['MaquinaID']) !== opFiltros.maquina) return false;
+    if(opFiltros.turno && o.Turno !== opFiltros.turno) return false;
+    if(opFiltros.busqueda){
+      const q = opFiltros.busqueda.toLowerCase().trim();
+      const texto = ((o.NumeroOP||'')+' '+prodName(o.ProdID||o['Prod ID'])+' '+(o.Lote||'')+' '+(o.Notas||'')).toLowerCase();
+      if(!texto.includes(q)) return false;
+    }
+    return true;
+  });
+}
+
 function renderOps(){
   const sp = document.getElementById('op-prod');
   if(sp) sp.innerHTML = db.productos.map(p=>`<option value="${p['Prod ID']||p.ProdID}">${p.Descripcion}</option>`).join('');
@@ -1209,9 +1340,32 @@ function renderOps(){
   if(sm) sm.innerHTML = db.maquinas.map(m=>`<option value="${m['Maquina ID']||m.MaqID||m['Maq ID']}">${m.Nombre}</option>`).join('');
   const of = document.getElementById('op-fecha');
   if(of&&!of.value) of.value = today();
+
+  const ofMaq = document.getElementById('of-maquina');
+  if(ofMaq && ofMaq.options.length<=1){
+    ofMaq.innerHTML = '<option value="">Todas</option>' + db.maquinas.map(m=>`<option value="${m['Maquina ID']||m.MaqID||m['Maq ID']}">${m.Nombre}</option>`).join('');
+    ofMaq.value = opFiltros.maquina;
+  }
+
   const tb = document.getElementById('t-ops');
-  if(!db.ops.length){ tb.innerHTML='<tr><td colspan="8" class="empty-row">Sin órdenes. Crea la primera OP.</td></tr>'; return; }
-  tb.innerHTML = db.ops.map(o=>{
+  if(!db.ops.length){ tb.innerHTML='<tr><td colspan="9" class="empty-row">Sin órdenes. Crea la primera OP.</td></tr>'; const rs0=document.getElementById('ops-resumen'); if(rs0) rs0.textContent=''; return; }
+
+  const opsVisibles = aplicarFiltrosOps(db.ops);
+
+  const rs = document.getElementById('ops-resumen');
+  if(rs){
+    const cont = {};
+    db.ops.forEach(o=>{ const e=o.Estatus||'Sin estatus'; cont[e]=(cont[e]||0)+1; });
+    const partes = Object.keys(cont).map(e=>`${e}: ${cont[e]}`);
+    rs.textContent = `Mostrando ${opsVisibles.length} de ${db.ops.length} OPs · ${partes.join(' · ')}`;
+  }
+
+  if(!opsVisibles.length){
+    tb.innerHTML='<tr><td colspan="9" class="empty-row">Ninguna OP coincide con los filtros. Usa "Limpiar".</td></tr>';
+    return;
+  }
+
+  tb.innerHTML = opsVisibles.map(o=>{
     const bc = o.Estatus==='Cerrada'||o.Estatus==='Terminada'?'badge-green':o.Estatus==='En proceso'?'badge-blue':o.Estatus==='Cancelada'?'badge-red':'badge-gray';
     const regs = db.registros.filter(r=>r.OPID===o.OPID);
     const prod = regs.reduce((s,r)=>s+(parseFloat(r.CantidadProducida)||0),0);
@@ -1369,6 +1523,9 @@ function aplicarPermisos(rol){
 
   const navPedidos = document.querySelector(`.nav-item[onclick*="'pedidos'"]`);
   if(navPedidos) navPedidos.style.display = (esAdmin || esAlmacen) ? '' : 'none';
+
+  const navSalida = document.querySelector(`.nav-item[onclick*="'salidamp'"]`);
+  if(navSalida) navSalida.style.display = (esAdmin || esAlmacen) ? '' : 'none';
 
   // Redirigir según rol
   if(esAlmacen){
@@ -1594,7 +1751,7 @@ async function saveProd(){
   // Armar la fecha como dd/mm/yyyy directamente del texto, sin pasar por UTC
   let createdAtProd;
   if(fechaProd){
-    const partes = fechaProd.split('-'); // ['2026','06','15']
+    const partes = fechaProd.split('-');
     createdAtProd = partes[2]+'/'+partes[1]+'/'+partes[0] + ', 12:00:00 p.m.';
   } else {
     createdAtProd = nowStr();
@@ -2144,6 +2301,172 @@ function imprimirBitacora(opid) {
 }
 
 
+
+// ══════════════════════════════════════════════════════
+// MÓDULO SALIDA DE MP (vales, NO afecta inventario)
+// ══════════════════════════════════════════════════════
+
+let smpLineasCount = 0;
+
+function renderSalidaMP(){
+  // Poblar OP destino (activas)
+  const sop = document.getElementById('smp-op');
+  if(sop) sop.innerHTML = '<option value="">— Sin OP —</option>' + db.ops.filter(o=>o.Estatus!=='Terminada'&&o.Estatus!=='Cerrada'&&o.Estatus!=='Cancelada').map(o=>`<option value="${o.OPID}">${o.NumeroOP} · ${prodName(o.ProdID||o['Prod ID'])}</option>`).join('');
+  // Poblar máquinas
+  const sm = document.getElementById('smp-maq');
+  if(sm) sm.innerHTML = '<option value="">— Máquina —</option>' + db.maquinas.map(m=>`<option value="${m['Maquina ID']||m.MaqID||m['Maq ID']}">${m.Nombre}</option>`).join('');
+  const ef = document.getElementById('smp-fecha');
+  if(ef && !ef.value) ef.value = today();
+  renderFormLineasSMP();
+
+  // Tabla de vales
+  const tb = document.getElementById('t-salidamp');
+  if(!db.salidasMP || !db.salidasMP.length){ tb.innerHTML='<tr><td colspan="6" class="empty-row">Sin vales de salida registrados.</td></tr>'; return; }
+  tb.innerHTML = [...db.salidasMP].reverse().map(s=>{
+    const lineas = db.lineasSalidaMP.filter(l=>l.SalidaID===s.SalidaID);
+    const opTxt = s.OPID ? (db.ops.find(o=>o.OPID===s.OPID)?.NumeroOP || s.OPID) : '—';
+    const matsTxt = lineas.length ? lineas.map(l=>`${matName(l.MatID)} (${l.Cantidad})`).join(', ') : '—';
+    return `<tr>
+      <td><strong style="font-family:'DM Mono',monospace;font-size:12px">${s.Folio||s.SalidaID}</strong></td>
+      <td style="font-family:'DM Mono',monospace;font-size:11px">${fmtFecha(s.Fecha)}</td>
+      <td style="font-family:'DM Mono',monospace;font-size:11px">${opTxt}</td>
+      <td style="font-size:12px">${matsTxt}</td>
+      <td>${s.Solicita||'—'}</td>
+      <td><button class="btn btn-sm" onclick="imprimirValeSalida('${s.SalidaID}')" style="background:#E8F5EE;color:#1A6B4A;border-color:#b8dfc8">🖨️ Imprimir</button></td>
+    </tr>`;
+  }).join('');
+}
+
+function addLineaSMP(){
+  smpLineasCount++;
+  const i = smpLineasCount;
+  const opts = db.materiales.map(m=>`<option value="${m.MatID||m['Mat ID']}">${m.Descripcion} (${parseFloat(m.StockActual)||0} ${m.Unidad||''})</option>`).join('');
+  const wrap = document.getElementById('smp-lineas-wrap');
+  const div = document.createElement('div');
+  div.className = 'smp-linea';
+  div.id = 'smp-linea-'+i;
+  div.innerHTML = `
+    <select class="smp-linea-mat">${opts}</select>
+    <input type="number" class="smp-linea-cant" placeholder="Cantidad" min="0" step="any"/>
+    <input type="text" class="smp-linea-lote" placeholder="Lote (opcional)"/>
+    <button class="btn btn-sm" onclick="document.getElementById('smp-linea-${i}').remove()" style="color:var(--red);background:var(--red-bg);border-color:var(--red);padding:6px">✕</button>`;
+  wrap.appendChild(div);
+}
+
+function renderFormLineasSMP(){
+  const wrap = document.getElementById('smp-lineas-wrap');
+  if(wrap && !wrap.children.length) addLineaSMP();
+}
+
+function resetFormSMP(){
+  ['smp-folio','smp-solicita','smp-entrega','smp-obs'].forEach(id=>{const e=document.getElementById(id);if(e)e.value='';});
+  const f=document.getElementById('smp-fecha'); if(f) f.value=today();
+  const w=document.getElementById('smp-lineas-wrap'); if(w) w.innerHTML='';
+  smpLineasCount=0;
+}
+
+async function saveSalidaMP(){
+  const folio = document.getElementById('smp-folio').value.trim();
+  const fecha = document.getElementById('smp-fecha').value;
+  const opid = document.getElementById('smp-op').value;
+  const maqid = document.getElementById('smp-maq').value;
+  const solicita = document.getElementById('smp-solicita').value.trim();
+  const entrega = document.getElementById('smp-entrega').value.trim();
+  const obs = document.getElementById('smp-obs').value;
+
+  if(!folio){ showAlert('al-smp','Captura el folio del vale.','err'); return; }
+
+  // Recolectar materiales
+  const lineasEls = document.querySelectorAll('#smp-lineas-wrap .smp-linea');
+  const lineas = [];
+  lineasEls.forEach(el=>{
+    const mat = el.querySelector('.smp-linea-mat')?.value;
+    const cant = parseFloat(el.querySelector('.smp-linea-cant')?.value) || 0;
+    const lote = el.querySelector('.smp-linea-lote')?.value || '';
+    if(mat && cant>0) lineas.push({MatID:mat, Cantidad:cant, Lote:lote});
+  });
+  if(!lineas.length){ showAlert('al-smp','Agrega al menos un material con cantidad.','err'); return; }
+
+  // Fecha sin desfase UTC
+  let fechaStr;
+  if(fecha){ const p=fecha.split('-'); fechaStr = p[2]+'/'+p[1]+'/'+p[0]; } else { fechaStr = today().split('-').reverse().join('/'); }
+
+  showAlert('al-smp','Guardando vale de salida...','inf');
+  const salidaID = 'SAL-'+uid();
+  const r = await apiPost({
+    action:'saveSalidaMP', SalidaID:salidaID, Folio:folio, Fecha:fechaStr,
+    OPID:opid, MaqID:maqid, Solicita:solicita, Entrega:entrega, Observaciones:obs,
+    CreatedBy: currentUser?.nombre||'Admin', CreatedAt: nowStr()
+  });
+  if(r.error){ showAlert('al-smp','Error: '+r.error,'err'); return; }
+
+  for(const l of lineas){
+    await apiPost({action:'saveLineaSalidaMP', LineaID:'LSM-'+uid(), SalidaID:salidaID, MatID:l.MatID, Cantidad:l.Cantidad, Lote:l.Lote});
+  }
+
+  showAlert('al-smp','✓ Vale de salida guardado (sin afectar inventario).','ok');
+  resetFormSMP();
+  toggleCard('form-smp');
+  setTimeout(()=>loadAll(), 1500);
+}
+
+function imprimirValeSalida(salidaID){
+  const s = db.salidasMP.find(x=>x.SalidaID===salidaID);
+  if(!s){ showGlobal('Vale no encontrado','err',2000); return; }
+  const lineas = db.lineasSalidaMP.filter(l=>l.SalidaID===salidaID);
+  const op = s.OPID ? db.ops.find(o=>o.OPID===s.OPID) : null;
+  const maq = s.MaqID ? db.maquinas.find(m=>(m['Maquina ID']||m.MaqID||m['Maq ID'])===s.MaqID) : null;
+  const w = window.open('','_blank','width=800,height=1000');
+  w.document.write(`<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8"><title>Vale de Salida ${s.Folio}</title><style>
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:Arial,sans-serif;font-size:13px;color:#000;background:#fff;padding:18px 22px}
+  .header{display:flex;justify-content:space-between;align-items:flex-start;border-bottom:3px solid #1A3A6B;padding-bottom:12px;margin-bottom:18px}
+  .header-logo{font-size:18px;font-weight:700;color:#1A3A6B}.header-sub{font-size:12px;color:#666;margin-top:3px}
+  .header-title{text-align:center;flex:1}.header-title h1{font-size:22px;font-weight:700;color:#1A3A6B;text-transform:uppercase;letter-spacing:.04em}
+  .header-folio{text-align:right;font-size:12px;color:#666}.header-folio strong{font-size:16px;color:#000;display:block}
+  .info{display:grid;grid-template-columns:repeat(2,1fr);gap:8px 24px;margin-bottom:18px;border:2px solid #ccc;border-radius:8px;padding:14px 18px;background:#f8f9fc}
+  .info-field label{font-size:10px;text-transform:uppercase;letter-spacing:.05em;color:#888;font-weight:700;margin-right:6px}
+  .info-field span{font-size:13px;font-weight:600;color:#000}
+  table{width:100%;border-collapse:collapse;margin-bottom:18px}
+  th{background:#1A3A6B;color:#fff;text-align:left;padding:9px 10px;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.03em}
+  td{padding:9px 10px;border-bottom:1px solid #ccc;font-size:13px}
+  tr:nth-child(even) td{background:#f6f7fa}
+  .obs{border:2px solid #ccc;border-radius:8px;padding:12px 14px;margin-bottom:24px;min-height:50px}
+  .obs label{font-size:10px;text-transform:uppercase;color:#888;font-weight:700;display:block;margin-bottom:6px}
+  .firmas{display:grid;grid-template-columns:repeat(3,1fr);gap:30px;margin-top:40px}
+  .firma{text-align:center}.firma .linea{border-bottom:2px solid #000;height:44px;margin-bottom:6px}
+  .firma p{font-size:12px;color:#444;font-weight:600}
+  .footer{margin-top:20px;padding-top:8px;border-top:1px solid #ddd;display:flex;justify-content:space-between;font-size:11px;color:#999}
+  @media print{body{padding:10px 14px}@page{size:A4;margin:14mm}}
+  </style></head><body>
+  <div class="header">
+    <div><div class="header-logo">🏭 Grupo Dearnes</div><div class="header-sub">Plásticos · Almacén de Materia Prima</div></div>
+    <div class="header-title"><h1>Vale de Salida MP</h1></div>
+    <div class="header-folio">Folio<strong>${s.Folio||s.SalidaID}</strong>${fmtFecha(s.Fecha)}</div>
+  </div>
+  <div class="info">
+    <div class="info-field"><label>OP Destino:</label><span>${op?op.NumeroOP:'—'}</span></div>
+    <div class="info-field"><label>Máquina:</label><span>${maq?maq.Nombre:'—'}</span></div>
+    <div class="info-field"><label>Solicita:</label><span>${s.Solicita||'—'}</span></div>
+    <div class="info-field"><label>Entrega:</label><span>${s.Entrega||'—'}</span></div>
+  </div>
+  <table><thead><tr><th>#</th><th>Código</th><th>Material</th><th>Cantidad</th><th>Lote</th></tr></thead><tbody>
+  ${lineas.map((l,i)=>{const mat=db.materiales.find(m=>(m.MatID||m['Mat ID'])===l.MatID);return `<tr><td>${i+1}</td><td>${mat?.Codigo||'—'}</td><td>${matName(l.MatID)}</td><td><strong>${l.Cantidad} ${mat?.Unidad||''}</strong></td><td>${l.Lote||'—'}</td></tr>`;}).join('')}
+  </tbody></table>
+  <div class="obs"><label>Observaciones</label>${s.Observaciones||'—'}</div>
+  <div class="firmas">
+    <div class="firma"><div class="linea"></div><p>Solicita</p></div>
+    <div class="firma"><div class="linea"></div><p>Entrega (Almacén)</p></div>
+    <div class="firma"><div class="linea"></div><p>Autoriza</p></div>
+  </div>
+  <div class="footer">
+    <span>Grupo Dearnes · Vale de salida de MP · Documento informativo</span>
+    <span>${s.Folio||s.SalidaID} · ${new Date().toLocaleString('es-MX')}</span>
+  </div>
+  </body></html>`);
+  w.document.close();
+  setTimeout(()=>w.print(), 600);
+}
 
 // ══════════════════════════════════════════════════════
 // MÓDULO PEDIDOS DE CLIENTES
