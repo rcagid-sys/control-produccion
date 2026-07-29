@@ -241,6 +241,10 @@ tbody tr:hover td { background: var(--surface2); }
 .smp-linea { display:grid; grid-template-columns:1fr 110px 110px 36px; gap:8px; align-items:center; margin-bottom:8px; }
 .smp-linea:last-child { margin-bottom:0; }
 
+/* RECETA OP */
+.receta-linea { display:grid; grid-template-columns:1fr 110px 36px; gap:8px; align-items:center; margin-bottom:8px; }
+.receta-linea:last-child { margin-bottom:0; }
+
 /* FILTROS OPS */
 .ops-filtros { display:flex; align-items:flex-end; gap:10px; flex-wrap:wrap; padding:14px 16px; border-bottom:1px solid var(--border); }
 .ops-filtros .fg { display:flex; flex-direction:column; gap:4px; }
@@ -456,7 +460,7 @@ tbody tr:hover td { background: var(--surface2); }
 <div class="page" id="p-ops">
   <div class="page-header">
     <div><div class="page-title">Órdenes de producción</div></div>
-    <button class="btn btn-primary" onclick="opPedidoVinculado=null;toggleCard('form-op')">
+    <button class="btn btn-primary" onclick="opPedidoVinculado=null;toggleCard('form-op');renderFormLineasReceta()">
       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>Nueva OP
     </button>
   </div>
@@ -474,8 +478,22 @@ tbody tr:hover td { background: var(--surface2); }
       <div class="form-group"><label>Estatus</label><select id="op-est"><option>Pendiente</option><option>En proceso</option><option>Cerrada</option></select></div>
       <div class="form-group full-col"><label>Notas</label><textarea id="op-notas"></textarea></div>
     </div>
+
+    <!-- RECETA DE ESTA OP -->
+    <div style="margin:0 0 10px;padding:12px 0 0;border-top:1px solid var(--border)">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px">
+        <div class="card-title">Receta de esta OP (% de cada insumo, máx. 4)</div>
+        <button class="btn btn-sm" onclick="addLineaReceta()" style="background:var(--accent-light);color:var(--accent);border-color:var(--accent)">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>Agregar material
+        </button>
+      </div>
+      <div style="font-size:11px;color:var(--text3);margin-bottom:10px">Obligatoria. Los porcentajes deben sumar 100% para poder guardar la OP.</div>
+      <div id="op-receta-wrap"></div>
+      <div style="margin-top:8px;font-size:12px;font-weight:600" id="op-receta-suma">Suma: 0%</div>
+    </div>
+
     <div class="btn-row">
-      <button class="btn" onclick="toggleCard('form-op')">Cancelar</button>
+      <button class="btn" onclick="toggleCard('form-op');resetFormOP()">Cancelar</button>
       <button class="btn btn-primary" onclick="saveOP()">
         <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20,6 9,17 4,12"/></svg>Guardar en Sheets
       </button>
@@ -1026,7 +1044,7 @@ tbody tr:hover td { background: var(--surface2); }
 <script>
 const API = 'https://script.google.com/macros/s/AKfycbz9seVeDogt0KOENWfM4HQU7IWqBmla6m_o1MWz3usXAKhqBiN9vKs6GxPjRZR5L4Y0/exec';
 
-let db = { materiales:[], productos:[], maquinas:[], ops:[], registros:[], entradas:[], movimientos:[], consumos:[], embarques:[], paros:[], formulas:[], pedidos:[], lineasPedido:[], salidasMP:[], lineasSalidaMP:[] };
+let db = { materiales:[], productos:[], maquinas:[], ops:[], registros:[], entradas:[], movimientos:[], consumos:[], embarques:[], paros:[], formulas:[], formulasOP:[], pedidos:[], lineasPedido:[], salidasMP:[], lineasSalidaMP:[] };
 
 function uid(){ return Math.random().toString(36).substr(2,8); }
 function today(){ const d=new Date(); return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); }
@@ -1102,6 +1120,7 @@ async function loadAll(){
   db.embarques  = res.embarques  || [];
   db.paros      = res.paros      || [];
   db.formulas   = res.formulas   || [];
+  db.formulasOP = res.formulasOP || [];
   db.pedidos    = res.pedidos    || [];
   db.lineasPedido = res.lineasPedido || [];
   db.salidasMP    = res.salidasMP    || [];
@@ -1417,6 +1436,52 @@ async function borrarOP(opid, numop){
 
 let opPedidoVinculado = null; // recuerda el pedido al crear OP vinculada
 
+// ══════════════════════════════════════════════════════
+// RECETA DE OP (materiales + % consumido, máx. 4 líneas)
+// ══════════════════════════════════════════════════════
+let opRecetaCount = 0;
+
+function addLineaReceta(){
+  const wrap = document.getElementById('op-receta-wrap');
+  if(wrap.children.length >= 4){ showGlobal('Máximo 4 materiales por receta.','err',2500); return; }
+  opRecetaCount++;
+  const i = opRecetaCount;
+  const opts = db.materiales.map(m=>`<option value="${m.MatID||m['Mat ID']}">${m.Descripcion}</option>`).join('');
+  const div = document.createElement('div');
+  div.className = 'receta-linea';
+  div.id = 'receta-linea-'+i;
+  div.innerHTML = `
+    <select class="receta-linea-mat">${opts}</select>
+    <input type="number" class="receta-linea-pct" placeholder="% (ej. 25)" min="0" max="100" step="any" oninput="actualizarSumaReceta()"/>
+    <button class="btn btn-sm" onclick="document.getElementById('receta-linea-${i}').remove();actualizarSumaReceta()" style="color:var(--red);background:var(--red-bg);border-color:var(--red);padding:6px">✕</button>`;
+  wrap.appendChild(div);
+  actualizarSumaReceta();
+}
+
+function renderFormLineasReceta(){
+  const wrap = document.getElementById('op-receta-wrap');
+  if(wrap && !wrap.children.length) addLineaReceta();
+}
+
+function actualizarSumaReceta(){
+  const els = document.querySelectorAll('#op-receta-wrap .receta-linea-pct');
+  let suma = 0;
+  els.forEach(el=>{ suma += parseFloat(el.value)||0; });
+  const lbl = document.getElementById('op-receta-suma');
+  if(!lbl) return;
+  suma = Math.round(suma*100)/100;
+  lbl.textContent = 'Suma: ' + suma + '%';
+  lbl.style.color = Math.abs(suma-100)<0.01 ? 'var(--green)' : 'var(--red)';
+}
+
+function resetFormOP(){
+  ['op-num','op-lote','op-notas'].forEach(id=>{const e=document.getElementById(id);if(e)e.value='';});
+  const c=document.getElementById('op-cant'); if(c) c.value='';
+  const w=document.getElementById('op-receta-wrap'); if(w) w.innerHTML='';
+  opRecetaCount=0;
+  const lbl=document.getElementById('op-receta-suma'); if(lbl){lbl.textContent='Suma: 0%';lbl.style.color='';}
+}
+
 async function saveOP(){
   const num = document.getElementById('op-num').value.trim();
   const prodid = document.getElementById('op-prod').value;
@@ -1428,12 +1493,32 @@ async function saveOP(){
   const est = document.getElementById('op-est').value;
   const notas = document.getElementById('op-notas').value;
   if(!num||!cant){ showAlert('al-op','Completa número OP y cantidad.','err'); return; }
+
+  // ── Recolectar y validar receta de la OP ──
+  const lineasRecetaEls = document.querySelectorAll('#op-receta-wrap .receta-linea');
+  const receta = [];
+  lineasRecetaEls.forEach(el=>{
+    const mat = el.querySelector('.receta-linea-mat')?.value;
+    const pct = parseFloat(el.querySelector('.receta-linea-pct')?.value) || 0;
+    if(mat && pct>0) receta.push({MatID:mat, Porcentaje:pct});
+  });
+  if(!receta.length){ showAlert('al-op','Agrega la receta de materiales para esta OP (obligatoria).','err'); return; }
+  const sumaReceta = receta.reduce((s,r)=>s+r.Porcentaje,0);
+  if(Math.abs(sumaReceta-100) > 0.01){ showAlert('al-op',`La receta debe sumar 100%. Actualmente suma ${sumaReceta.toFixed(2)}%.`,'err'); return; }
+
   showAlert('al-op','Guardando en Google Sheets...','inf');
-  const r = await apiPost({action:'saveOP',OPID:uid(),NumeroOP:num,ProdID:prodid,CantidadPlaneada:cant,MaquinaID:maqid,Turno:turno,FechaPlaneada:fecha,Lote:lote,Estatus:est,Notas:notas,PedidoID:(opPedidoVinculado||''),CreatedBy:'Admin',CreatedAt:nowStr()});
+  const opid = uid();
+  const r = await apiPost({action:'saveOP',OPID:opid,NumeroOP:num,ProdID:prodid,CantidadPlaneada:cant,MaquinaID:maqid,Turno:turno,FechaPlaneada:fecha,Lote:lote,Estatus:est,Notas:notas,PedidoID:(opPedidoVinculado||''),CreatedBy:'Admin',CreatedAt:nowStr()});
   if(r.error){ showAlert('al-op','Error: '+r.error,'err'); return; }
-  showAlert('al-op','OP guardada correctamente en Google Sheets.','ok');
+
+  // ── Guardar líneas de receta vinculadas a esta OP ──
+  for(const l of receta){
+    await apiPost({action:'saveFormulaOP', LineaID:'FOP-'+uid(), OPID:opid, MatID:l.MatID, Porcentaje:l.Porcentaje});
+  }
+
+  showAlert('al-op','OP y receta guardadas correctamente en Google Sheets.','ok');
   opPedidoVinculado = null; // limpiar después de guardar
-  setTimeout(()=>{ toggleCard('form-op'); loadAll(); }, 1500);
+  setTimeout(()=>{ toggleCard('form-op'); resetFormOP(); loadAll(); }, 1500);
 }
 
 // ── LOGIN ─────────────────────────────────────────────────────
@@ -1764,19 +1849,19 @@ async function saveProd(){
   await apiPost({action:'saveMovimiento',MovID:uid(),TipoMov:'Entrada_PT',EntidadID:op?.ProdID||op?.['Prod ID'],TipoEntidad:'PT',Cantidad:cant,StockAntes:antes,StockDespues:antes+cant,RefID:op?.NumeroOP||opid,UsuarioID:'USR-001'});
   showAlert('al-prod','Guardando consumos automáticos...','inf');
 
-  // ── Consumo automático de MP basado en FORMULAS_MP ──
+  // ── Consumo automático de MP basado en la receta de ESTA OP (FORMULAS_OP) ──
   const prodId = op?.ProdID || op?.['Prod ID'];
   const prodObj = db.productos.find(p=>(p['Prod ID']||p.ProdID)===prodId);
   const pesoKg = parseFloat(prodObj?.Pesokg)||0;
-  const formulas = db.formulas.filter(f=>f.ProdID===prodId);
+  const recetaOP = db.formulasOP.filter(f=>f.OPID===opid);
 
-  if(formulas.length && pesoKg > 0) {
+  if(recetaOP.length && pesoKg > 0) {
     const kgTotales = cant * pesoKg; // kg totales producidos (sin merma)
-    for(const f of formulas) {
+    for(const f of recetaOP) {
       const matid = f.MatID;
-      const pct = parseFloat(f.Porcentaje)||0;
+      const pct = parseFloat(f.Porcentaje)||0; // guardado en escala 0-100
       if(!matid || !pct) continue;
-      const kgConsumo = parseFloat((kgTotales * pct).toFixed(4));
+      const kgConsumo = parseFloat((kgTotales * (pct/100)).toFixed(4));
       const mat = db.materiales.find(m=>m.MatID===matid||m['Mat ID']===matid);
       const antes = parseFloat(mat?.StockActual)||0;
       await apiPost({
@@ -1794,9 +1879,9 @@ async function saveProd(){
         StockAntes:antes, StockDespues:Math.max(0,antes-kgConsumo),
         RefID:op?.NumeroOP||opid, UsuarioID:currentUser?.id||'USR-001'});
     }
-    showAlert('al-prod',`✓ Registro guardado · ${formulas.length} consumos MP calculados automáticamente.`,'ok');
+    showAlert('al-prod',`✓ Registro guardado · ${recetaOP.length} consumos MP calculados según la receta de esta OP.`,'ok');
   } else {
-    showAlert('al-prod','Registro guardado correctamente.','ok');
+    showAlert('al-prod','Registro guardado correctamente. (Esta OP no tiene receta o el producto no tiene Pesokg, no se calculó consumo automático.)','ok');
   }
 
   scannedOPID=null;
@@ -2821,6 +2906,7 @@ function crearOPdesdePedido(pedidoId) {
   go('ops', document.querySelector('.nav-item[onclick*="\'ops\'"]'));
   const formCard = document.getElementById('form-op');
   if(formCard) formCard.style.display = 'block';
+  renderFormLineasReceta();
   // Prellenar campos
   const folioOP = 'OP-PED-'+p.Folio.replace(/[^A-Z0-9]/gi,'-')+'-001';
   setTimeout(()=>{
@@ -2836,7 +2922,7 @@ function crearOPdesdePedido(pedidoId) {
     }
     const opFecha = document.getElementById('op-fecha');
     if(opFecha) opFecha.value = p.FechaPrometida || today();
-    showGlobal(`Prellenando OP para pedido ${p.Folio}. Ajusta los datos y guarda.`, 'ok', 5000);
+    showGlobal(`Prellenando OP para pedido ${p.Folio}. Ajusta los datos, captura la receta y guarda.`, 'ok', 5000);
   }, 300);
 }
 
