@@ -796,6 +796,8 @@ tbody tr:hover td { background: var(--surface2); }
       <div class="form-group"><label>Folio embarque</label><input id="emb-folio" placeholder="EMB-001"/></div>
       <div class="form-group"><label>Cliente / Destino</label><input id="emb-cliente" placeholder="Cliente SA de CV"/></div>
       <div class="form-group"><label>Fecha embarque</label><input id="emb-fecha" type="date"/></div>
+      <div class="form-group"><label>Transportista</label><input id="emb-transportista" placeholder="Nombre transportista / empresa"/></div>
+      <div class="form-group"><label>Placas</label><input id="emb-placas" placeholder="ABC-1234"/></div>
       <div class="form-group full-col"><label>Notas</label><input id="emb-notas" placeholder="Opcional"/></div>
     </div>
     <div class="btn-row" id="emb-btn-guardar" style="display:none">
@@ -807,7 +809,7 @@ tbody tr:hover td { background: var(--surface2); }
   </div>
   <div class="card">
     <div class="table-wrap">
-      <table><thead><tr><th>Folio</th><th>Cliente</th><th>Producto</th><th>Cantidad</th><th>Fecha</th></tr></thead>
+      <table><thead><tr><th>Folio</th><th>Cliente</th><th>Producto</th><th>Cantidad</th><th>Fecha</th><th>Acción</th></tr></thead>
       <tbody id="t-embarques"></tbody></table>
     </div>
   </div>
@@ -2002,13 +2004,87 @@ function renderEmbarques(){
   const ef = document.getElementById('emb-fecha');
   if(ef&&!ef.value) ef.value = today();
   const tb = document.getElementById('t-embarques');
-  if(!db.embarques||!db.embarques.length){ tb.innerHTML='<tr><td colspan="5" class="empty-row">Sin embarques registrados.</td></tr>'; return; }
+  if(!db.embarques||!db.embarques.length){ tb.innerHTML='<tr><td colspan="6" class="empty-row">Sin embarques registrados.</td></tr>'; return; }
   tb.innerHTML = [...db.embarques].reverse().map(e=>`<tr>
     <td style="font-family:'DM Mono',monospace;font-size:12px">${e.Folio||'—'}</td>
     <td>${e.Cliente||'—'}</td>
     <td>${prodName(e.ProdID||e['Prod ID'])}</td>
     <td>${e.Cantidad||e.cantidad||e.CANTIDAD||'—'}</td>
-    <td style="font-family:'DM Mono',monospace;font-size:11px">${fmtFecha(e.FechaEmbarque)}</td></tr>`).join('');
+    <td style="font-family:'DM Mono',monospace;font-size:11px">${fmtFecha(e.FechaEmbarque)}</td>
+    <td><button class="btn btn-sm" onclick="imprimirRemision('${(e.Folio||'').replace(/'/g,"\\'")}')" style="background:#EEF2FB;color:#2D4A8A;border-color:#c0cef0">🖨️ Remisión</button></td></tr>`).join('');
+}
+
+// ══════════════════════════════════════════════════════
+// NOTA DE REMISIÓN (control de salida de planta)
+// Agrupa todas las filas de EMBARQUES que compartan el
+// mismo Folio en un solo documento imprimible.
+// ══════════════════════════════════════════════════════
+
+function imprimirRemision(folio){
+  if(!folio){ showGlobal('Este embarque no tiene folio.','err',3000); return; }
+  const lineas = db.embarques.filter(e=>(e.Folio||'')===folio);
+  if(!lineas.length){ showGlobal('No se encontraron embarques con ese folio.','err',3000); return; }
+  const base = lineas[0];
+  const totalPzas = lineas.reduce((s,l)=>s+(parseFloat(l.Cantidad)||0),0);
+  const pedido = base.PedidoID ? db.pedidos.find(p=>p.PedidoID===base.PedidoID) : null;
+  const w = window.open('','_blank','width=850,height=1100');
+  w.document.write(`<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8"><title>Remisión ${folio}</title><style>
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:Arial,sans-serif;font-size:13px;color:#000;background:#fff;padding:18px 22px}
+  .header{display:flex;justify-content:space-between;align-items:flex-start;border-bottom:3px solid #1A3A6B;padding-bottom:12px;margin-bottom:18px}
+  .header-logo{font-size:18px;font-weight:700;color:#1A3A6B}.header-sub{font-size:12px;color:#666;margin-top:3px}
+  .header-title{text-align:center;flex:1}.header-title h1{font-size:22px;font-weight:700;color:#1A3A6B;text-transform:uppercase;letter-spacing:.04em}
+  .header-folio{text-align:right;font-size:12px;color:#666}.header-folio strong{font-size:16px;color:#000;display:block}
+  .info{display:grid;grid-template-columns:repeat(2,1fr);gap:8px 24px;margin-bottom:18px;border:2px solid #ccc;border-radius:8px;padding:14px 18px;background:#f8f9fc}
+  .info-field label{font-size:10px;text-transform:uppercase;letter-spacing:.05em;color:#888;font-weight:700;margin-right:6px}
+  .info-field span{font-size:13px;font-weight:600;color:#000}
+  table{width:100%;border-collapse:collapse;margin-bottom:6px}
+  th{background:#1A3A6B;color:#fff;text-align:left;padding:9px 10px;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.03em}
+  td{padding:9px 10px;border-bottom:1px solid #ccc;font-size:13px}
+  tr:nth-child(even) td{background:#f6f7fa}
+  .total-row td{border-top:2px solid #1A3A6B;border-bottom:none;font-weight:700;background:#f0f2f8}
+  .obs{border:2px solid #ccc;border-radius:8px;padding:12px 14px;margin:18px 0 24px;min-height:40px}
+  .obs label{font-size:10px;text-transform:uppercase;color:#888;font-weight:700;display:block;margin-bottom:6px}
+  .firmas{display:grid;grid-template-columns:repeat(3,1fr);gap:30px;margin-top:36px}
+  .firma{text-align:center}.firma .linea{border-bottom:2px solid #000;height:44px;margin-bottom:6px}
+  .firma p{font-size:12px;color:#444;font-weight:600}
+  .footer{margin-top:20px;padding-top:8px;border-top:1px solid #ddd;display:flex;justify-content:space-between;font-size:11px;color:#999}
+  .aviso{margin-top:14px;font-size:11px;color:#8A1A1A;text-align:center;font-weight:600}
+  @media print{body{padding:10px 14px}@page{size:A4;margin:14mm}}
+  </style></head><body>
+  <div class="header">
+    <div><div class="header-logo">🏭 Grupo Dearnes</div><div class="header-sub">Plásticos · Almacén de Producto Terminado</div></div>
+    <div class="header-title"><h1>Nota de Remisión</h1></div>
+    <div class="header-folio">Folio<strong>${folio}</strong>${fmtFecha(base.FechaEmbarque)}</div>
+  </div>
+  <div class="info">
+    <div class="info-field"><label>Cliente / Destino:</label><span>${base.Cliente||'—'}</span></div>
+    <div class="info-field"><label>Pedido vinculado:</label><span>${pedido?pedido.Folio:'— (embarque suelto)'}</span></div>
+    <div class="info-field"><label>Transportista:</label><span>${base.Transportista||'—'}</span></div>
+    <div class="info-field"><label>Placas:</label><span>${base.Placas||'—'}</span></div>
+  </div>
+  <table><thead><tr><th>#</th><th>Código</th><th>Producto</th><th>Cantidad</th><th>Unidad</th></tr></thead><tbody>
+  ${lineas.map((l,i)=>{
+    const pid = l.ProdID||l['Prod ID'];
+    const prod = db.productos.find(p=>(p['Prod ID']||p.ProdID)===pid);
+    return `<tr><td>${i+1}</td><td>${prod?.Codigo||'—'}</td><td>${prodName(pid)}</td><td><strong>${l.Cantidad}</strong></td><td>${prod?.Unidad||'—'}</td></tr>`;
+  }).join('')}
+  <tr class="total-row"><td colspan="3" style="text-align:right">TOTAL</td><td colspan="2">${totalPzas}</td></tr>
+  </tbody></table>
+  <div class="obs"><label>Observaciones</label>${lineas.map(l=>l.Notas).filter(Boolean).join(' · ')||'—'}</div>
+  <div class="firmas">
+    <div class="firma"><div class="linea"></div><p>Entrega (Almacén)</p></div>
+    <div class="firma"><div class="linea"></div><p>Transportista</p></div>
+    <div class="firma"><div class="linea"></div><p>Recibe de conformidad</p></div>
+  </div>
+  <div class="aviso">Este embarque queda registrado en el sistema de Control de Producción · Grupo Dearnes</div>
+  <div class="footer">
+    <span>Grupo Dearnes · Nota de remisión · Documento de control interno</span>
+    <span>${folio} · ${new Date().toLocaleString('es-MX')}</span>
+  </div>
+  </body></html>`);
+  w.document.close();
+  setTimeout(()=>w.print(), 600);
 }
 
 // Autocompletar cliente al elegir pedido en el form de embarque
@@ -2030,10 +2106,12 @@ async function saveEmbarque(){
   console.log('Cantidad embarque:', cant);
   const fecha = document.getElementById('emb-fecha').value;
   const notas = document.getElementById('emb-notas').value;
+  const transportista = document.getElementById('emb-transportista')?.value.trim() || '';
+  const placas = document.getElementById('emb-placas')?.value.trim() || '';
   const pedidoVinc = document.getElementById('emb-pedido')?.value || '';
   if(!folio||!cant||!prodid){ showAlert('al-emb','Completa folio, producto y cantidad.','err'); return; }
   showAlert('al-emb','Guardando embarque...','inf');
-  const r = await apiPost({action:'saveEmbarque', EmbID:uid(), Folio:folio, Cliente:cliente, ProdID:prodid, Cantidad:cant, FechaEmbarque:fecha, OperadorID:'USR-001', PedidoID:pedidoVinc, Notas:notas, CreatedAt:nowStr()});
+  const r = await apiPost({action:'saveEmbarque', EmbID:uid(), Folio:folio, Cliente:cliente, ProdID:prodid, Cantidad:cant, FechaEmbarque:fecha, OperadorID:'USR-001', PedidoID:pedidoVinc, Notas:notas, Transportista:transportista, Placas:placas, CreatedAt:nowStr()});
   if(r.error){ showAlert('al-emb','Error: '+r.error,'err'); return; }
   const prod = db.productos.find(p=>p['Prod ID']===prodid||p.ProdID===prodid);
   const antes = parseFloat(prod?.StockActual)||0;
