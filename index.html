@@ -2011,7 +2011,7 @@ function renderEmbarques(){
     <td>${prodName(e.ProdID||e['Prod ID'])}</td>
     <td>${e.Cantidad||e.cantidad||e.CANTIDAD||'—'}</td>
     <td style="font-family:'DM Mono',monospace;font-size:11px">${fmtFecha(e.FechaEmbarque)}</td>
-    <td><button class="btn btn-sm" onclick="imprimirRemision('${(e.Folio||'').replace(/'/g,"\\'")}')" style="background:#EEF2FB;color:#2D4A8A;border-color:#c0cef0">🖨️ Remisión</button></td></tr>`).join('');
+    <td><button class="btn btn-sm" onclick="imprimirRemision('${String(e.Folio||'').replace(/'/g,"\\'")}')" style="background:#EEF2FB;color:#2D4A8A;border-color:#c0cef0">🖨️ Remisión</button></td></tr>`).join('');
 }
 
 // ══════════════════════════════════════════════════════
@@ -2022,7 +2022,7 @@ function renderEmbarques(){
 
 function imprimirRemision(folio){
   if(!folio){ showGlobal('Este embarque no tiene folio.','err',3000); return; }
-  const lineas = db.embarques.filter(e=>(e.Folio||'')===folio);
+  const lineas = db.embarques.filter(e=>String(e.Folio||'')===String(folio||''));
   if(!lineas.length){ showGlobal('No se encontraron embarques con ese folio.','err',3000); return; }
   const base = lineas[0];
   const totalPzas = lineas.reduce((s,l)=>s+(parseFloat(l.Cantidad)||0),0);
