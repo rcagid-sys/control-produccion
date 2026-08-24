@@ -651,8 +651,18 @@ tbody tr:hover td { background: var(--surface2); }
 <!-- INV PT -->
 <div class="page" id="p-invpt">
   <div class="page-header"><div class="page-title">Inventario producto terminado</div></div>
-  <div class="card">
-    <div class="table-wrap">
+  <div class="card" style="padding:0">
+    <div class="ops-filtros">
+      <div class="fg" style="flex-direction:row;align-items:center;gap:6px">
+        <input type="checkbox" id="invpt-solo-disponible" checked onchange="setFiltroInvPT('soloDisponible', this.checked)" style="width:16px;height:16px;cursor:pointer"/>
+        <label for="invpt-solo-disponible" style="text-transform:none;font-size:12px;font-weight:500;color:var(--text2);cursor:pointer">Solo con stock disponible</label>
+      </div>
+      <div class="fg" style="flex:1"><label>Buscar (código o producto)</label>
+        <input id="invpt-busqueda" placeholder="Escribe para buscar..." oninput="setFiltroInvPT('busqueda', this.value)"/>
+      </div>
+    </div>
+    <div style="padding:10px 16px 0"><span class="ops-resumen" id="invpt-resumen"></span></div>
+    <div class="table-wrap" style="padding:6px 16px 16px">
       <table><thead><tr><th>Código</th><th>Producto</th><th>Stock actual (rollos)</th><th>Unidad</th></tr></thead>
       <tbody id="t-invpt"></tbody></table>
     </div>
