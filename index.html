@@ -363,6 +363,9 @@ tbody tr:hover td { background: var(--surface2); }
   <div class="nav-item" onclick="go('invpt',this)">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 16V8a2 2 0 00-1-1.73l-7-4a2 2 0 00-2 0l-7 4A2 2 0 003 8v8a2 2 0 001 1.73l7 4a2 2 0 002 0l7-4A2 2 0 0021 16z"/></svg>Inv. PT
   </div>
+  <div class="nav-item" onclick="go('traspasos',this)">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="17 1 21 5 17 9"/><path d="M3 11V9a4 4 0 014-4h14"/><polyline points="7 23 3 19 7 15"/><path d="M21 13v2a4 4 0 01-4 4H3"/></svg>Traspasos CEDIS
+  </div>
   <div class="nav-item" onclick="go('salidamp',this)">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 3v4a1 1 0 001 1h4"/><path d="M17 21H7a2 2 0 01-2-2V5a2 2 0 012-2h7l5 5v11a2 2 0 01-2 2z"/><line x1="9" y1="13" x2="15" y2="13"/><line x1="9" y1="17" x2="13" y2="17"/></svg>Salida MP
   </div>
@@ -663,8 +666,46 @@ tbody tr:hover td { background: var(--surface2); }
     </div>
     <div style="padding:10px 16px 0"><span class="ops-resumen" id="invpt-resumen"></span></div>
     <div class="table-wrap" style="padding:6px 16px 16px">
-      <table><thead><tr><th>Código</th><th>Producto</th><th>Stock actual (rollos)</th><th>Unidad</th></tr></thead>
+      <table><thead><tr><th>Código</th><th>Producto</th><th>Bodega Matriz</th><th>CEDIS U-Storage</th><th>Stock total</th><th>Unidad</th></tr></thead>
       <tbody id="t-invpt"></tbody></table>
+    </div>
+  </div>
+</div>
+
+<!-- TRASPASOS ENTRE BODEGAS (CEDIS) -->
+<div class="page" id="p-traspasos">
+  <div class="page-header"><div><div class="page-title">Traspasos entre bodegas</div><div class="page-subtitle">Bodega Matriz ⇄ CEDIS U-Storage</div></div></div>
+  <div class="card">
+    <div class="card-header"><div class="card-title">Registrar traspaso</div></div>
+    <div id="al-traspaso"></div>
+    <div class="form-grid">
+      <div class="form-group full-col"><label>Producto</label><select id="tra-prod" onchange="renderTraspasoStockInfo()"></select></div>
+      <div class="form-group"><label>Bodega origen</label>
+        <select id="tra-origen" onchange="renderTraspasoStockInfo()">
+          <option value="ALM-001">Bodega Matriz</option>
+          <option value="ALM-002">CEDIS U-Storage</option>
+        </select>
+      </div>
+      <div class="form-group"><label>Bodega destino</label>
+        <select id="tra-destino" onchange="renderTraspasoStockInfo()">
+          <option value="ALM-002">CEDIS U-Storage</option>
+          <option value="ALM-001">Bodega Matriz</option>
+        </select>
+      </div>
+      <div class="form-group"><label>Cantidad</label><input id="tra-cant" type="number" placeholder="0" min="1"/></div>
+      <div class="form-group full-col" id="tra-stock-info" style="font-size:12px;color:var(--text3)"></div>
+    </div>
+    <div class="btn-row">
+      <button class="btn btn-primary" onclick="saveTraspaso()">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20,6 9,17 4,12"/></svg>Registrar traspaso
+      </button>
+    </div>
+  </div>
+  <div class="card">
+    <div class="card-header"><div class="card-title">Traspasos recientes</div></div>
+    <div class="table-wrap">
+      <table><thead><tr><th>Fecha</th><th>Producto</th><th>Cantidad</th><th>Origen</th><th>Destino</th></tr></thead>
+      <tbody id="t-traspasos"></tbody></table>
     </div>
   </div>
 </div>
@@ -804,6 +845,12 @@ tbody tr:hover td { background: var(--surface2); }
         </select>
       </div>
       <div class="form-group"><label>Folio embarque</label><input id="emb-folio" placeholder="EMB-001"/></div>
+      <div class="form-group"><label>Bodega origen</label>
+        <select id="emb-almacen">
+          <option value="ALM-001">Bodega Matriz</option>
+          <option value="ALM-002">CEDIS U-Storage</option>
+        </select>
+      </div>
       <div class="form-group"><label>Cliente / Destino</label><input id="emb-cliente" placeholder="Cliente SA de CV"/></div>
       <div class="form-group"><label>Fecha embarque</label><input id="emb-fecha" type="date"/></div>
       <div class="form-group"><label>Transportista</label><input id="emb-transportista" placeholder="Nombre transportista / empresa"/></div>
@@ -819,7 +866,7 @@ tbody tr:hover td { background: var(--surface2); }
   </div>
   <div class="card">
     <div class="table-wrap">
-      <table><thead><tr><th>Folio</th><th>Cliente</th><th>Producto</th><th>Cantidad</th><th>Fecha</th><th>Acción</th></tr></thead>
+      <table><thead><tr><th>Folio</th><th>Cliente</th><th>Producto</th><th>Cantidad</th><th>Bodega</th><th>Fecha</th><th>Acción</th></tr></thead>
       <tbody id="t-embarques"></tbody></table>
     </div>
   </div>
@@ -949,9 +996,18 @@ tbody tr:hover td { background: var(--surface2); }
 <!-- TRAZABILIDAD -->
 <div class="page" id="p-traz">
   <div class="page-header"><div class="page-title">Log de trazabilidad</div></div>
-  <div class="card">
-    <div class="table-wrap">
-      <table><thead><tr><th>Timestamp</th><th>Tipo</th><th>Material / Producto</th><th>Cantidad</th><th>Antes</th><th>Después</th><th>Referencia</th></tr></thead>
+  <div class="card" style="padding:0">
+    <div class="ops-filtros" id="traz-filtros" style="flex-wrap:wrap;gap:6px">
+      <button class="btn btn-sm btn-primary traz-filtro-btn" data-tipo="" onclick="setFiltroTraz('')">Todos</button>
+      <button class="btn btn-sm traz-filtro-btn" data-tipo="Entrada_PT" onclick="setFiltroTraz('Entrada_PT')">Entrada PT</button>
+      <button class="btn btn-sm traz-filtro-btn" data-tipo="Consumo_MP" onclick="setFiltroTraz('Consumo_MP')">Consumo MP</button>
+      <button class="btn btn-sm traz-filtro-btn" data-tipo="Entrada_MP" onclick="setFiltroTraz('Entrada_MP')">Entrada MP</button>
+      <button class="btn btn-sm traz-filtro-btn" data-tipo="Salida_PT" onclick="setFiltroTraz('Salida_PT')">Salida PT</button>
+      <button class="btn btn-sm traz-filtro-btn" data-tipo="Traspaso_Almacen" onclick="setFiltroTraz('Traspaso_Almacen')">Traspaso Almacén</button>
+      <button class="btn btn-sm traz-filtro-btn" data-tipo="Entrada_Merma" onclick="setFiltroTraz('Entrada_Merma')">Entrada Merma</button>
+    </div>
+    <div class="table-wrap" style="padding:6px 16px 16px">
+      <table><thead><tr><th>Timestamp</th><th>Tipo</th><th>Material / Producto</th><th>Cantidad</th><th>Antes</th><th>Después</th><th>Bodega</th><th>Referencia</th></tr></thead>
       <tbody id="t-traz"></tbody></table>
     </div>
   </div>
@@ -1056,7 +1112,18 @@ tbody tr:hover td { background: var(--surface2); }
 <script>
 const API = 'https://script.google.com/macros/s/AKfycbz9seVeDogt0KOENWfM4HQU7IWqBmla6m_o1MWz3usXAKhqBiN9vKs6GxPjRZR5L4Y0/exec';
 
-let db = { materiales:[], productos:[], maquinas:[], ops:[], registros:[], entradas:[], movimientos:[], consumos:[], embarques:[], paros:[], formulas:[], formulasOP:[], pedidos:[], lineasPedido:[], salidasMP:[], lineasSalidaMP:[] };
+let db = { materiales:[], productos:[], maquinas:[], ops:[], registros:[], entradas:[], movimientos:[], consumos:[], embarques:[], paros:[], formulas:[], formulasOP:[], pedidos:[], lineasPedido:[], salidasMP:[], lineasSalidaMP:[], almacenes:[], stockAlmacen:[] };
+const MERMA_PROD_ID = 'PROD-MERMA';
+const ALMACEN_MATRIZ = 'ALM-001';
+const ALMACEN_CEDIS = 'ALM-002';
+function stockEnAlmacen(prodId, almacenId){
+  const r = db.stockAlmacen.find(s=>(s.ProdID===prodId) && (s.AlmacenID===almacenId));
+  return parseFloat(r?.StockActual)||0;
+}
+function almacenName(id){
+  const a = db.almacenes.find(x=>x.AlmacenID===id);
+  return a ? a.Nombre : (id||'—');
+}
 
 function uid(){ return Math.random().toString(36).substr(2,8); }
 function today(){ const d=new Date(); return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); }
@@ -1137,6 +1204,8 @@ async function loadAll(){
   db.lineasPedido = res.lineasPedido || [];
   db.salidasMP    = res.salidasMP    || [];
   db.lineasSalidaMP = res.lineasSalidaMP || [];
+  db.almacenes    = res.almacenes    || [];
+  db.stockAlmacen = res.stockAlmacen || [];
   showGlobal('✓ Datos sincronizados desde Google Sheets', 'ok', 2500);
   const cur = document.querySelector('.nav-item.active');
   if(cur){ const m = cur.getAttribute('onclick').match(/'([^']+)'/); if(m) render(m[1]); }
@@ -1150,6 +1219,7 @@ function render(id){
   else if(id==='invmp') renderInvMP();
   else if(id==='entmp') renderEntMP();
   else if(id==='invpt') renderInvPT();
+  else if(id==='traspasos') renderTraspasos();
   else if(id==='traz') renderTraz();
   else if(id==='reportes') renderReportes();
   else if(id==='consumos') renderConsumos();
@@ -1613,7 +1683,7 @@ function aplicarPermisos(rol){
     if(nav) nav.style.display = (esAdmin || esJefe || esOper || esAlmacen) ? '' : 'none';
   });
 
-  ['embarques','entmp'].forEach(id=>{
+  ['embarques','entmp','traspasos'].forEach(id=>{
     const nav = document.querySelector(`.nav-item[onclick*="'${id}'"]`);
     if(nav) nav.style.display = (esAdmin || esAlmacen) ? '' : 'none';
   });
@@ -1858,7 +1928,14 @@ async function saveProd(){
   if(r.error){ showAlert('al-prod','Error: '+r.error,'err'); return; }
   const prod = db.productos.find(p=>p['Prod ID']===(op?.ProdID||op?.['Prod ID'])||p.ProdID===(op?.ProdID||op?.['Prod ID']));
   const antes = parseFloat(prod?.StockActual)||0;
-  await apiPost({action:'saveMovimiento',MovID:uid(),TipoMov:'Entrada_PT',EntidadID:op?.ProdID||op?.['Prod ID'],TipoEntidad:'PT',Cantidad:cant,StockAntes:antes,StockDespues:antes+cant,RefID:op?.NumeroOP||opid,UsuarioID:'USR-001'});
+  await apiPost({action:'saveMovimiento',MovID:uid(),TipoMov:'Entrada_PT',EntidadID:op?.ProdID||op?.['Prod ID'],TipoEntidad:'PT',Cantidad:cant,StockAntes:antes,StockDespues:antes+cant,RefID:op?.NumeroOP||opid,UsuarioID:currentUser?.id||'USR-001',AlmacenID:ALMACEN_MATRIZ});
+
+  // ── Merma: entra automáticamente al inventario como SKU de merma (kg), en Bodega Matriz ──
+  if(merma > 0){
+    const mermaProd = db.productos.find(p=>(p['Prod ID']||p.ProdID)===MERMA_PROD_ID);
+    const mermaAntes = parseFloat(mermaProd?.StockActual)||0;
+    await apiPost({action:'saveMovimiento',MovID:uid(),TipoMov:'Entrada_Merma',EntidadID:MERMA_PROD_ID,TipoEntidad:'PT',Cantidad:merma,StockAntes:mermaAntes,StockDespues:mermaAntes+merma,RefID:op?.NumeroOP||opid,UsuarioID:currentUser?.id||'USR-001',AlmacenID:ALMACEN_MATRIZ});
+  }
   showAlert('al-prod','Guardando consumos automáticos...','inf');
 
   // ── Consumo automático de MP basado en la receta de ESTA OP (FORMULAS_OP) ──
@@ -1969,19 +2046,83 @@ function renderInvPT(){
   document.getElementById('t-invpt').innerHTML = lista.map(p=>{
     // StockActual ya es el saldo neto: el backend suma producción (saveRegistro)
     // y resta embarques (saveEmbarque). NO recalcular aquí o se cuenta doble.
+    const prodId = p['Prod ID']||p.ProdID;
     const stock = parseFloat(p.StockActual)||0;
+    const stockMatriz = stockEnAlmacen(prodId, ALMACEN_MATRIZ);
+    const stockCedis = stockEnAlmacen(prodId, ALMACEN_CEDIS);
     const bc = stock<=0?'color:var(--red)':stock<10?'color:var(--amber)':'color:var(--green)';
-    return `<tr><td style="font-family:'DM Mono',monospace;font-size:12px">${p.Codigo}</td><td>${p.Descripcion}</td><td><strong style="${bc}">${stock}</strong></td><td>${p.Unidad}</td></tr>`;
-  }).join('') || `<tr><td colspan="4" class="empty-row">${db.productos.length ? 'Ningún SKU coincide con el filtro.' : 'Sin productos.'}</td></tr>`;
+    return `<tr><td style="font-family:'DM Mono',monospace;font-size:12px">${p.Codigo}</td><td>${p.Descripcion}</td><td>${stockMatriz}</td><td>${stockCedis}</td><td><strong style="${bc}">${stock}</strong></td><td>${p.Unidad}</td></tr>`;
+  }).join('') || `<tr><td colspan="6" class="empty-row">${db.productos.length ? 'Ningún SKU coincide con el filtro.' : 'Sin productos.'}</td></tr>`;
+}
+
+// ══════════════════════════════════════════════════════
+// TRASPASOS ENTRE BODEGAS (Bodega Matriz ⇄ CEDIS U-Storage)
+// No mueve el StockActual total de PRODUCTOS (sigue siendo
+// la suma de ambas bodegas) — solo redistribuye entre
+// STOCK_ALMACEN. Se registra también en MOVIMIENTOS para
+// que quede en la Trazabilidad.
+// ══════════════════════════════════════════════════════
+
+function renderTraspasos(){
+  const sp = document.getElementById('tra-prod');
+  if(sp) sp.innerHTML = db.productos.map(p=>`<option value="${p['Prod ID']||p.ProdID}">${p.Descripcion}</option>`).join('');
+  renderTraspasoStockInfo();
+  const tb = document.getElementById('t-traspasos');
+  const lista = db.movimientos.filter(m=>m.TipoMov==='Traspaso_Almacen');
+  if(!lista.length){ tb.innerHTML='<tr><td colspan="5" class="empty-row">Sin traspasos registrados.</td></tr>'; return; }
+  tb.innerHTML = [...lista].reverse().map(m=>`<tr>
+    <td style="font-family:'DM Mono',monospace;font-size:11px">${m.Timestamp||''}</td>
+    <td>${prodName(m.EntidadID)}</td>
+    <td>${m.Cantidad}</td>
+    <td>${almacenName(m.AlmacenID)}</td>
+    <td>${almacenName(m.AlmacenDestino)}</td></tr>`).join('');
+}
+
+function renderTraspasoStockInfo(){
+  const prodId = document.getElementById('tra-prod')?.value;
+  const origen = document.getElementById('tra-origen')?.value;
+  const info = document.getElementById('tra-stock-info');
+  if(!info || !prodId) return;
+  const disponible = stockEnAlmacen(prodId, origen);
+  info.textContent = `Disponible en ${almacenName(origen)}: ${disponible}`;
+}
+
+async function saveTraspaso(){
+  const prodid = document.getElementById('tra-prod').value;
+  const origen = document.getElementById('tra-origen').value;
+  const destino = document.getElementById('tra-destino').value;
+  const cant = parseFloat(document.getElementById('tra-cant').value)||0;
+  if(!prodid||!cant){ showAlert('al-traspaso','Selecciona producto y cantidad.','err'); return; }
+  if(origen===destino){ showAlert('al-traspaso','La bodega origen y destino no pueden ser la misma.','err'); return; }
+  const antes = stockEnAlmacen(prodid, origen);
+  if(cant > antes){ showAlert('al-traspaso',`Stock insuficiente en ${almacenName(origen)}. Disponible: ${antes}`,'err'); return; }
+  showAlert('al-traspaso','Guardando traspaso...','inf');
+  const r = await apiPost({action:'saveTraspaso', TraspasoID:uid(), ProdID:prodid, Cantidad:cant, AlmacenOrigen:origen, AlmacenDestino:destino, UsuarioID:currentUser?.id||'USR-001', CreatedAt:nowStr()});
+  if(r.error){ showAlert('al-traspaso','Error: '+r.error,'err'); return; }
+  await apiPost({action:'saveMovimiento', MovID:uid(), TipoMov:'Traspaso_Almacen', EntidadID:prodid, TipoEntidad:'PT', Cantidad:cant, StockAntes:antes, StockDespues:antes-cant, RefID:'Traspaso', UsuarioID:currentUser?.id||'USR-001', AlmacenID:origen, AlmacenDestino:destino});
+  showAlert('al-traspaso','Traspaso registrado correctamente.','ok');
+  document.getElementById('tra-cant').value='';
+  setTimeout(()=>loadAll(), 1500);
+}
+
+let trazFiltro = '';
+function setFiltroTraz(tipo){
+  trazFiltro = tipo;
+  document.querySelectorAll('.traz-filtro-btn').forEach(b=>{
+    b.classList.toggle('btn-primary', b.getAttribute('data-tipo')===tipo);
+  });
+  renderTraz();
 }
 
 function renderTraz(){
   const tb = document.getElementById('t-traz');
-  if(!db.movimientos.length){ tb.innerHTML='<tr><td colspan="7" class="empty-row">Sin movimientos aún.</td></tr>'; return; }
-  tb.innerHTML = [...db.movimientos].reverse().map(m=>{
-    const bc = m.TipoMov==='Entrada_PT'?'badge-green':m.TipoMov==='Entrada_MP'?'badge-blue':'badge-amber';
+  const lista = trazFiltro ? db.movimientos.filter(m=>m.TipoMov===trazFiltro) : db.movimientos;
+  if(!lista.length){ tb.innerHTML='<tr><td colspan="8" class="empty-row">Sin movimientos.</td></tr>'; return; }
+  tb.innerHTML = [...lista].reverse().map(m=>{
+    const bc = m.TipoMov==='Entrada_PT'?'badge-green':m.TipoMov==='Entrada_Merma'?'badge-green':m.TipoMov==='Entrada_MP'?'badge-blue':m.TipoMov==='Traspaso_Almacen'?'badge-blue':'badge-amber';
     const nombre = matName(m.EntidadID)!==m.EntidadID ? matName(m.EntidadID) : prodName(m.EntidadID);
-    return `<tr><td style="font-family:'DM Mono',monospace;font-size:11px">${m.Timestamp||''}</td><td><span class="badge ${bc}">${m.TipoMov}</span></td><td>${nombre}</td><td>${m.Cantidad}</td><td>${m.StockAntes}</td><td>${m.StockDespues}</td><td style="font-family:'DM Mono',monospace;font-size:11px">${m.RefID||''}</td></tr>`;
+    const bodega = m.TipoMov==='Traspaso_Almacen' ? `${almacenName(m.AlmacenID)} → ${almacenName(m.AlmacenDestino)}` : (m.AlmacenID ? almacenName(m.AlmacenID) : '—');
+    return `<tr><td style="font-family:'DM Mono',monospace;font-size:11px">${m.Timestamp||''}</td><td><span class="badge ${bc}">${m.TipoMov}</span></td><td>${nombre}</td><td>${m.Cantidad}</td><td>${m.StockAntes}</td><td>${m.StockDespues}</td><td style="font-size:11px">${bodega}</td><td style="font-family:'DM Mono',monospace;font-size:11px">${m.RefID||''}</td></tr>`;
   }).join('');
 }
 
@@ -2034,12 +2175,13 @@ function renderEmbarques(){
   const ef = document.getElementById('emb-fecha');
   if(ef&&!ef.value) ef.value = today();
   const tb = document.getElementById('t-embarques');
-  if(!db.embarques||!db.embarques.length){ tb.innerHTML='<tr><td colspan="6" class="empty-row">Sin embarques registrados.</td></tr>'; return; }
+  if(!db.embarques||!db.embarques.length){ tb.innerHTML='<tr><td colspan="7" class="empty-row">Sin embarques registrados.</td></tr>'; return; }
   tb.innerHTML = [...db.embarques].reverse().map(e=>`<tr>
     <td style="font-family:'DM Mono',monospace;font-size:12px">${e.Folio||'—'}</td>
     <td>${e.Cliente||'—'}</td>
     <td>${prodName(e.ProdID||e['Prod ID'])}</td>
     <td>${e.Cantidad||e.cantidad||e.CANTIDAD||'—'}</td>
+    <td style="font-size:11px">${e.AlmacenID?almacenName(e.AlmacenID):'—'}</td>
     <td style="font-family:'DM Mono',monospace;font-size:11px">${fmtFecha(e.FechaEmbarque)}</td>
     <td><button class="btn btn-sm" onclick="imprimirRemision('${String(e.Folio||'').replace(/'/g,"\\'")}')" style="background:#EEF2FB;color:#2D4A8A;border-color:#c0cef0">🖨️ Remisión</button></td></tr>`).join('');
 }
@@ -2139,13 +2281,16 @@ async function saveEmbarque(){
   const transportista = document.getElementById('emb-transportista')?.value.trim() || '';
   const placas = document.getElementById('emb-placas')?.value.trim() || '';
   const pedidoVinc = document.getElementById('emb-pedido')?.value || '';
+  const almacen = document.getElementById('emb-almacen')?.value || ALMACEN_MATRIZ;
   if(!folio||!cant||!prodid){ showAlert('al-emb','Completa folio, producto y cantidad.','err'); return; }
+  const dispEnBodega = stockEnAlmacen(prodid, almacen);
+  if(cant > dispEnBodega){ showAlert('al-emb',`Stock insuficiente en ${almacenName(almacen)}. Disponible: ${dispEnBodega}`,'err'); return; }
   showAlert('al-emb','Guardando embarque...','inf');
-  const r = await apiPost({action:'saveEmbarque', EmbID:uid(), Folio:folio, Cliente:cliente, ProdID:prodid, Cantidad:cant, FechaEmbarque:fecha, OperadorID:'USR-001', PedidoID:pedidoVinc, Notas:notas, Transportista:transportista, Placas:placas, CreatedAt:nowStr()});
+  const r = await apiPost({action:'saveEmbarque', EmbID:uid(), Folio:folio, Cliente:cliente, ProdID:prodid, Cantidad:cant, FechaEmbarque:fecha, OperadorID:currentUser?.id||'USR-001', PedidoID:pedidoVinc, Notas:notas, Transportista:transportista, Placas:placas, AlmacenID:almacen, CreatedAt:nowStr()});
   if(r.error){ showAlert('al-emb','Error: '+r.error,'err'); return; }
   const prod = db.productos.find(p=>p['Prod ID']===prodid||p.ProdID===prodid);
   const antes = parseFloat(prod?.StockActual)||0;
-  await apiPost({action:'saveMovimiento', MovID:uid(), TipoMov:'Salida_PT', EntidadID:prodid, TipoEntidad:'PT', Cantidad:cant, StockAntes:antes, StockDespues:Math.max(0,antes-cant), RefID:folio, UsuarioID:'USR-001'});
+  await apiPost({action:'saveMovimiento', MovID:uid(), TipoMov:'Salida_PT', EntidadID:prodid, TipoEntidad:'PT', Cantidad:cant, StockAntes:antes, StockDespues:Math.max(0,antes-cant), RefID:folio, UsuarioID:currentUser?.id||'USR-001', AlmacenID:almacen});
   showAlert('al-emb','Embarque registrado correctamente.','ok');
   scannedEmbProdID = null; embContador = 0; embContadorProdID = null;
   resetEmbarque();
