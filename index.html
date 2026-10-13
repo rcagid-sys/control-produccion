@@ -645,7 +645,7 @@ tbody tr:hover td { background: var(--surface2); }
   <div class="card">
     <div class="card-header"><div class="card-title">Entradas recientes</div></div>
     <div class="table-wrap">
-      <table><thead><tr><th>Material</th><th>Cantidad</th><th>Lote</th><th>Proveedor</th><th>Fecha</th></tr></thead>
+      <table><thead><tr><th>Material</th><th>Cantidad</th><th>Lote</th><th>Proveedor</th><th>Fecha</th><th>📎</th></tr></thead>
       <tbody id="t-ent"></tbody></table>
     </div>
   </div>
@@ -866,7 +866,7 @@ tbody tr:hover td { background: var(--surface2); }
   </div>
   <div class="card">
     <div class="table-wrap">
-      <table><thead><tr><th>Folio</th><th>Cliente</th><th>Producto</th><th>Cantidad</th><th>Bodega</th><th>Fecha</th><th>Acción</th></tr></thead>
+      <table><thead><tr><th>Folio</th><th>Cliente</th><th>Producto</th><th>Cantidad</th><th>Bodega</th><th>Fecha</th><th>Acción</th><th>📎</th></tr></thead>
       <tbody id="t-embarques"></tbody></table>
     </div>
   </div>
@@ -918,7 +918,7 @@ tbody tr:hover td { background: var(--surface2); }
   <div class="card">
     <div class="card-header"><div class="card-title">Vales de salida recientes</div></div>
     <div class="table-wrap">
-      <table><thead><tr><th>Folio</th><th>Fecha</th><th>OP destino</th><th>Materiales</th><th>Solicita</th><th>Acción</th></tr></thead>
+      <table><thead><tr><th>Folio</th><th>Fecha</th><th>OP destino</th><th>Materiales</th><th>Solicita</th><th>Acción</th><th>📎</th></tr></thead>
       <tbody id="t-salidamp"></tbody></table>
     </div>
   </div>
@@ -1159,20 +1159,34 @@ function toggleCard(id){
   el.style.display = el.style.display === 'none' ? 'block' : 'none';
 }
 
+// ── Sesión por token (v2.7) ──
+let sessionToken = null;
+
+function sesionExpirada(res){
+  if(res && res.sesionExpirada && currentUser){
+    currentUser = null; sessionToken = null; pinBuffer = '';
+    updatePinDots();
+    document.getElementById('login-error').textContent = 'Tu sesión expiró. Ingresa tu PIN de nuevo.';
+    document.getElementById('login-screen').style.display = 'flex';
+  }
+  return res;
+}
+
 async function api(params){
   try{
-    const url = API + '?' + new URLSearchParams(params);
+    const url = API + '?' + new URLSearchParams({...params, token: sessionToken || ''});
     const r = await fetch(url);
     const text = await r.text();
-    return JSON.parse(text);
+    return sesionExpirada(JSON.parse(text));
   }catch(e){ return {error: e.toString()}; }
 }
 
 async function apiPost(data){
   try{
+    if(data.action !== 'login') data.Token = sessionToken || '';
     const r = await fetch(API, { method:'POST', body: JSON.stringify(data) });
     const text = await r.text();
-    return JSON.parse(text);
+    return sesionExpirada(JSON.parse(text));
   }catch(e){ return {error: e.toString()}; }
 }
 
@@ -1206,6 +1220,7 @@ async function loadAll(){
   db.lineasSalidaMP = res.lineasSalidaMP || [];
   db.almacenes    = res.almacenes    || [];
   db.stockAlmacen = res.stockAlmacen || [];
+  await adjCargarConteo();
   showGlobal('✓ Datos sincronizados desde Google Sheets', 'ok', 2500);
   const cur = document.querySelector('.nav-item.active');
   if(cur){ const m = cur.getAttribute('onclick').match(/'([^']+)'/); if(m) render(m[1]); }
@@ -1490,6 +1505,7 @@ function renderOps(){
       <td style="white-space:nowrap">
         <button class="btn btn-sm" onclick="showOPQR('${o.OPID}','${o.NumeroOP}','${prodName(o.ProdID||o['Prod ID'])}','${o.Lote||''}')" style="background:#EEF2FB;color:#2D4A8A;border-color:#c0cef0;margin-bottom:3px">📲 QR</button>
         <button class="btn btn-sm" onclick="imprimirBitacora('${o.OPID}')" style="background:#E8F5EE;color:#1A6B4A;border-color:#b8dfc8;margin-bottom:3px">🖨️ Bitácora</button>
+        ${adjBoton('OP', o.OPID, 'Bitacora_OP')}
         <button class="btn btn-sm del-op-btn" data-opid="${o.OPID}" data-num="${o.NumeroOP}" style="background:#FDEAEA;color:#8A1A1A;border-color:#f0b8b8">✕ Borrar</button>
       </td></tr>`;
   }).join('');
@@ -1640,6 +1656,7 @@ async function doLogin(){
     return;
   }
   currentUser = {id: r.UserID, nombre: r.Nombre, rol: r.Rol};
+  sessionToken = r.Token || null;
   document.getElementById('login-screen').style.display = 'none';
   document.getElementById('user-name').textContent = r.Nombre;
   document.getElementById('user-rol').textContent = r.Rol;
@@ -1651,6 +1668,7 @@ async function doLogin(){
 function logout(){
   if(!confirm('¿Cerrar sesión?')) return;
   currentUser = null;
+  sessionToken = null;
   pinBuffer = '';
   updatePinDots();
   document.getElementById('login-error').textContent = '';
@@ -1998,8 +2016,8 @@ function renderEntMP(){
   const ef = document.getElementById('ent-fecha');
   if(ef&&!ef.value) ef.value = today();
   const tb = document.getElementById('t-ent');
-  if(!db.entradas.length){ tb.innerHTML='<tr><td colspan="5" class="empty-row">Sin entradas registradas.</td></tr>'; return; }
-  tb.innerHTML = [...db.entradas].reverse().map(e=>`<tr><td>${matName(e.MatID||e['Mat ID'])}</td><td>${e.Cantidad} kg</td><td style="font-family:'DM Mono',monospace;font-size:12px">${e.LoteProveedor||''}</td><td>${e.Proveedor||''}</td><td style="font-family:'DM Mono',monospace;font-size:12px">${e.FechaRecepcion||''}</td></tr>`).join('');
+  if(!db.entradas.length){ tb.innerHTML='<tr><td colspan="6" class="empty-row">Sin entradas registradas.</td></tr>'; return; }
+  tb.innerHTML = [...db.entradas].reverse().map(e=>`<tr><td>${matName(e.MatID||e['Mat ID'])}</td><td>${e.Cantidad} kg</td><td style="font-family:'DM Mono',monospace;font-size:12px">${e.LoteProveedor||''}</td><td>${e.Proveedor||''}</td><td style="font-family:'DM Mono',monospace;font-size:12px">${e.FechaRecepcion||''}</td><td>${adjBoton('EntradaMP', e.EntID, 'Factura_Proveedor,Remision_Proveedor')}</td></tr>`).join('');
 }
 
 async function saveEnt(){
@@ -2175,7 +2193,7 @@ function renderEmbarques(){
   const ef = document.getElementById('emb-fecha');
   if(ef&&!ef.value) ef.value = today();
   const tb = document.getElementById('t-embarques');
-  if(!db.embarques||!db.embarques.length){ tb.innerHTML='<tr><td colspan="7" class="empty-row">Sin embarques registrados.</td></tr>'; return; }
+  if(!db.embarques||!db.embarques.length){ tb.innerHTML='<tr><td colspan="8" class="empty-row">Sin embarques registrados.</td></tr>'; return; }
   tb.innerHTML = [...db.embarques].reverse().map(e=>`<tr>
     <td style="font-family:'DM Mono',monospace;font-size:12px">${e.Folio||'—'}</td>
     <td>${e.Cliente||'—'}</td>
@@ -2183,7 +2201,7 @@ function renderEmbarques(){
     <td>${e.Cantidad||e.cantidad||e.CANTIDAD||'—'}</td>
     <td style="font-size:11px">${e.AlmacenID?almacenName(e.AlmacenID):'—'}</td>
     <td style="font-family:'DM Mono',monospace;font-size:11px">${fmtFecha(e.FechaEmbarque)}</td>
-    <td><button class="btn btn-sm" onclick="imprimirRemision('${String(e.Folio||'').replace(/'/g,"\\'")}')" style="background:#EEF2FB;color:#2D4A8A;border-color:#c0cef0">🖨️ Remisión</button></td></tr>`).join('');
+    <td><button class="btn btn-sm" onclick="imprimirRemision('${String(e.Folio||'').replace(/'/g,"\\'")}')" style="background:#EEF2FB;color:#2D4A8A;border-color:#c0cef0">🖨️ Remisión</button></td><td>${adjBoton('Embarque', e.Folio, 'Factura_Cliente,Remision_Cliente,Evidencia_Entrega')}</td></tr>`).join('');
 }
 
 // ══════════════════════════════════════════════════════
@@ -2652,7 +2670,7 @@ function renderSalidaMP(){
 
   // Tabla de vales
   const tb = document.getElementById('t-salidamp');
-  if(!db.salidasMP || !db.salidasMP.length){ tb.innerHTML='<tr><td colspan="6" class="empty-row">Sin vales de salida registrados.</td></tr>'; return; }
+  if(!db.salidasMP || !db.salidasMP.length){ tb.innerHTML='<tr><td colspan="7" class="empty-row">Sin vales de salida registrados.</td></tr>'; return; }
   tb.innerHTML = [...db.salidasMP].reverse().map(s=>{
     const lineas = db.lineasSalidaMP.filter(l=>l.SalidaID===s.SalidaID);
     const opTxt = s.OPID ? (db.ops.find(o=>o.OPID===s.OPID)?.NumeroOP || s.OPID) : '—';
@@ -2663,7 +2681,7 @@ function renderSalidaMP(){
       <td style="font-family:'DM Mono',monospace;font-size:11px">${opTxt}</td>
       <td style="font-size:12px">${matsTxt}</td>
       <td>${s.Solicita||'—'}</td>
-      <td><button class="btn btn-sm" onclick="imprimirValeSalida('${s.SalidaID}')" style="background:#E8F5EE;color:#1A6B4A;border-color:#b8dfc8">🖨️ Imprimir</button></td>
+      <td><button class="btn btn-sm" onclick="imprimirValeSalida('${s.SalidaID}')" style="background:#E8F5EE;color:#1A6B4A;border-color:#b8dfc8">🖨️ Imprimir</button></td><td>${adjBoton('SalidaMP', s.SalidaID, 'Vale_Salida_MP')}</td>
     </tr>`;
   }).join('');
 }
@@ -3507,6 +3525,143 @@ function exportarCSVPedidos() {
 }
 
 function renderReportes(){ initRepFiltros(); generarReporte(); }
+
+// ══════════════════════════════════════════════════════
+// ADJUNTOS PDF (v2.7) — solo PDF, máx 5 MB, visibles para todos
+// ══════════════════════════════════════════════════════
+const ADJ_MAX = 5 * 1024 * 1024;
+const ADJ_NOMBRES = {
+  Factura_Proveedor:'Factura proveedor', Remision_Proveedor:'Remisión proveedor',
+  Factura_Cliente:'Factura cliente', Remision_Cliente:'Remisión cliente',
+  Evidencia_Entrega:'Evidencia de entrega', Vale_Salida_MP:'Vale firmado',
+  Bitacora_OP:'Bitácora escaneada'
+};
+let ADJ_CONTEO = {};
+let ADJ_CTX = null;
+
+function adjEsc(s){ return String(s==null?'':s).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+
+async function adjCargarConteo(){
+  try{
+    const r = await apiPost({action:'getConteoArchivos'});
+    if(r && r.ok) ADJ_CONTEO = r.conteo || {};
+  }catch(e){ console.warn('Conteo adjuntos', e); }
+}
+
+function adjRerender(){
+  const cur = document.querySelector('.nav-item.active');
+  if(!cur) return;
+  const m = cur.getAttribute('onclick').match(/'([^']+)'/);
+  if(m) render(m[1]);
+}
+
+// refTipo: 'EntradaMP' | 'Embarque' | 'SalidaMP' | 'OP'
+// tipos: string con TipoDoc separados por coma
+function adjBoton(refTipo, refId, tipos){
+  if(!refId) return '';
+  const n = ADJ_CONTEO[refId] || 0;
+  const st = n ? 'background:var(--green-bg);color:var(--green);border-color:#b8dfc8' : '';
+  return `<button class="btn btn-sm" style="${st}" onclick="adjAbrir('${refTipo}','${String(refId).replace(/'/g,"\\'")}','${tipos}')">📎${n ? ' '+n : ''}</button>`;
+}
+
+function adjAbrir(refTipo, refId, tipos){
+  ADJ_CTX = { refTipo, refId, tipos: tipos.split(',') };
+  let m = document.getElementById('adjModal');
+  if(!m){
+    m = document.createElement('div');
+    m.id = 'adjModal';
+    m.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:9999;display:flex;align-items:center;justify-content:center;padding:12px';
+    m.onclick = e => { if(e.target === m) m.remove(); };
+    document.body.appendChild(m);
+  }
+  const selTipo = ADJ_CTX.tipos.length > 1
+    ? `<div class="form-group" style="margin-bottom:10px"><label>Tipo de documento</label>
+         <select id="adjTipo">${ADJ_CTX.tipos.map(t=>`<option value="${t}">${ADJ_NOMBRES[t]||t}</option>`).join('')}</select></div>`
+    : `<input type="hidden" id="adjTipo" value="${ADJ_CTX.tipos[0]}">`;
+  m.innerHTML = `<div style="background:#fff;border-radius:14px;width:min(520px,94vw);max-height:85vh;overflow:auto;padding:18px">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+      <div style="font-weight:600;font-size:14px">📎 Adjuntos · <span style="font-family:'DM Mono',monospace;font-size:12px">${adjEsc(refId)}</span></div>
+      <button onclick="document.getElementById('adjModal').remove()" style="background:none;border:none;font-size:20px;cursor:pointer">✕</button>
+    </div>
+    <div id="adjLista" style="margin-bottom:14px;font-size:13px">Cargando…</div>
+    ${selTipo}
+    <label class="btn btn-primary" style="width:100%;justify-content:center;padding:12px;cursor:pointer">
+      ➕ Subir PDF (máx 5 MB)
+      <input type="file" accept="application/pdf" style="display:none" onchange="adjSubir(this)">
+    </label>
+    <div id="adjMsg" style="margin-top:10px;font-size:12px;min-height:16px"></div>
+  </div>`;
+  adjRefrescar();
+}
+
+async function adjRefrescar(){
+  const box = document.getElementById('adjLista');
+  if(!box || !ADJ_CTX) return;
+  const r = await apiPost({action:'getArchivos', RefTipo:ADJ_CTX.refTipo, RefID:ADJ_CTX.refId});
+  if(!r.ok){ box.textContent = r.error || 'No se pudieron cargar los adjuntos.'; return; }
+  box.innerHTML = r.archivos.length ? r.archivos.map(a=>`
+    <div style="display:flex;gap:8px;align-items:center;padding:8px 0;border-bottom:1px solid var(--border)">
+      <div style="flex:1;min-width:0">
+        <div style="font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">📄 ${adjEsc(a.NombreOriginal||'archivo.pdf')}</div>
+        <div style="font-size:11px;color:var(--text3)">${ADJ_NOMBRES[a.TipoDoc]||a.TipoDoc} · ${a.KB} KB · ${adjEsc(a.Fecha)}</div>
+      </div>
+      <button class="btn btn-sm" onclick="adjVer('${a.ArchivoID}')">Ver</button>
+      <button class="btn btn-sm" onclick="adjCancelar('${a.ArchivoID}')" style="color:var(--red)" title="Cancelar adjunto">🗑</button>
+    </div>`).join('') : '<i style="color:var(--text3)">Sin adjuntos todavía.</i>';
+}
+
+async function adjSubir(input, forzar){
+  const f = input.files && input.files[0];
+  const msg = document.getElementById('adjMsg');
+  if(!f || !ADJ_CTX) return;
+  if(f.type !== 'application/pdf'){ msg.textContent = '⚠️ Solo se permiten archivos PDF.'; input.value=''; return; }
+  if(f.size > ADJ_MAX){ msg.textContent = '⚠️ El PDF pesa más de 5 MB.'; input.value=''; return; }
+  msg.textContent = 'Subiendo…';
+  const b64 = await new Promise((ok, err)=>{
+    const rd = new FileReader();
+    rd.onload = ()=>ok(String(rd.result).split(',')[1]);
+    rd.onerror = err;
+    rd.readAsDataURL(f);
+  });
+  const r = await apiPost({
+    action:'subirArchivo', TipoDoc:document.getElementById('adjTipo').value,
+    RefTipo:ADJ_CTX.refTipo, RefID:ADJ_CTX.refId, NombreOriginal:f.name, Base64:b64,
+    UsuarioID:currentUser?.id||'USR-001', Forzar:!!forzar
+  });
+  if(r.ok){
+    msg.textContent = '✅ PDF subido.';
+    input.value = '';
+    await adjCargarConteo();
+    adjRefrescar();
+    adjRerender();
+  } else if(r.duplicado){
+    if(confirm(r.error + '\n\n¿Subirlo de todos modos?')) return adjSubir(input, true);
+    msg.textContent = 'Cancelado: PDF duplicado.';
+    input.value = '';
+  } else {
+    msg.textContent = '⚠️ ' + (r.error || 'No se pudo subir. Intenta de nuevo.');
+  }
+}
+
+async function adjVer(archivoId){
+  const w = window.open('', '_blank'); // se abre primero para que el navegador no lo bloquee
+  const r = await apiPost({action:'getArchivo', ArchivoID:archivoId});
+  if(!r.ok){ if(w) w.close(); showGlobal(r.error || 'No se pudo abrir el PDF.', 'err', 3500); return; }
+  const bin = atob(r.Base64), arr = new Uint8Array(bin.length);
+  for(let i=0;i<bin.length;i++) arr[i] = bin.charCodeAt(i);
+  const url = URL.createObjectURL(new Blob([arr], {type:'application/pdf'}));
+  if(w) w.location = url; else window.location = url;
+}
+
+async function adjCancelar(archivoId){
+  const motivo = prompt('Motivo para cancelar este adjunto:');
+  if(!motivo) return;
+  const r = await apiPost({action:'cancelarArchivo', ArchivoID:archivoId, Motivo:motivo, UsuarioID:currentUser?.id||'USR-001'});
+  if(!r.ok){ showGlobal(r.error || 'No se pudo cancelar.', 'err', 3500); return; }
+  await adjCargarConteo();
+  adjRefrescar();
+  adjRerender();
+}
 
 </script>
 
