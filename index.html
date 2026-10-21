@@ -2566,6 +2566,35 @@ function imprimirBitacora(opid) {
   if (!op) { showGlobal('OP no encontrada', 'err', 2000); return; }
   const prod = db.productos.find(p => (p['Prod ID']||p.ProdID) === op.ProdID);
   const maq  = db.maquinas.find(m => (m['Maquina ID']||m.MaqID||m['Maq ID']) === (op.MaquinaID||op['Maquina ID']));
+
+  // ── Consumo teórico de MP según la receta de esta OP ──
+  const pesoKg = parseFloat(prod?.Pesokg) || 0;
+  const kgTotales = (parseFloat(op.CantidadPlaneada) || 0) * pesoKg;
+  const receta = db.formulasOP.filter(f => f.OPID === opid);
+  let filasMP = '';
+  if (receta.length) {
+    let sumaKg = 0, sumaPct = 0;
+    filasMP = receta.map(f => {
+      const pct = parseFloat(f.Porcentaje) || 0;
+      const kg = pesoKg > 0 ? kgTotales * pct / 100 : 0;
+      sumaKg += kg; sumaPct += pct;
+      return `<tr style="height:30px"><td style="text-align:left;padding:0 10px;font-weight:600">${matName(f.MatID)}</td>
+        <td>${pct}%</td><td><strong>${pesoKg > 0 ? kg.toFixed(2) : '—'}</strong></td><td></td><td></td><td></td></tr>`;
+    }).join('') + `<tr style="height:30px;background:#f0f2f8"><td style="text-align:right;padding:0 10px;font-weight:700">TOTAL</td>
+        <td><strong>${Math.round(sumaPct * 100) / 100}%</strong></td><td><strong>${pesoKg > 0 ? sumaKg.toFixed(2) : '—'}</strong></td><td></td><td></td><td></td></tr>`;
+  } else {
+    // OP sin receta: filas en blanco para llenar a mano
+    filasMP = Array(4).fill('<tr style="height:30px"><td></td><td></td><td></td><td></td><td></td><td></td></tr>').join('');
+  }
+  const bloqueMP = `
+  <div class="section-title">Consumo de materia prima${pesoKg > 0 ? ` <span style="font-size:11px;font-weight:400;color:#666;text-transform:none">· Base: ${op.CantidadPlaneada} × ${pesoKg} kg = ${kgTotales.toFixed(2)} kg</span>` : ''}</div>
+  <div class="turno-block" style="page-break-inside:avoid">
+    <table class="turno-table"><thead><tr>
+      <th>Material</th><th style="width:70px">% Receta</th><th style="width:95px">Kg<br>teóricos</th>
+      <th style="width:95px">Kg reales<br>usados</th><th style="width:110px">Lote MP</th><th style="width:80px">Vo.Bo.</th>
+    </tr></thead><tbody>${filasMP}</tbody></table>
+  </div>`;
+
   const w = window.open('', '_blank', 'width=850,height=1100');
   w.document.write(`<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8"><title>Bitácora ${op.NumeroOP}</title><style>
   *{box-sizing:border-box;margin:0;padding:0}
@@ -2627,6 +2656,7 @@ function imprimirBitacora(opid) {
       <tr><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr>
     </tbody></table>
   </div>`).join('')}
+  ${bloqueMP}
   <div class="section-title">Resumen del día</div>
   <div class="resumen">
     <div class="resumen-box"><label>Total producido</label><div class="val"></div></div>
