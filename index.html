@@ -333,7 +333,7 @@ tbody tr:hover td { background: var(--surface2); }
 <nav class="sidebar" id="sidebar">
   <div class="sidebar-logo">
     <div class="sidebar-logo-title">Control Producción</div>
-    <div class="sidebar-logo-sub">Plásticos · v1.0</div>
+    <div class="sidebar-logo-sub">Plásticos · v2.8</div>
   </div>
 
   <div class="sidebar-section">Principal</div>
@@ -985,7 +985,7 @@ tbody tr:hover td { background: var(--surface2); }
   <!-- Tabs: Activos / Historial -->
   <div class="tabs">
     <button class="tab-btn active" id="tab-ped-activos" onclick="switchTabPed('activos')">📋 Activos</button>
-    <button class="tab-btn" id="tab-ped-hist" onclick="switchTabPed('historial')">✓ Entregados</button>
+    <button class="tab-btn" id="tab-ped-hist" onclick="switchTabPed('historial')">✓ Entregados / Cancelados</button>
     <button class="tab-btn" id="tab-ped-alerta" onclick="switchTabPed('alertas')">🚨 Alertas</button>
   </div>
 
@@ -1129,6 +1129,15 @@ function uid(){ return Math.random().toString(36).substr(2,8); }
 function today(){ const d=new Date(); return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); }
 function nowStr(){ return new Date().toLocaleString('es-MX'); }
 
+// Evita doble clic / doble envío: mientras una captura está en curso, ignora otra igual.
+const _busy = {};
+async function guard(key, fn){
+  if(_busy[key]) { showGlobal('Ya se está guardando, espera un momento...','inf',1500); return; }
+  _busy[key] = true;
+  try { return await fn(); }
+  finally { _busy[key] = false; }
+}
+
 function showGlobal(msg, type, dur=3000){
   const bar = document.getElementById('global-bar');
   bar.innerHTML = `<div class="global-alert ${type}">${msg}</div>`;
@@ -1159,7 +1168,7 @@ function toggleCard(id){
   el.style.display = el.style.display === 'none' ? 'block' : 'none';
 }
 
-// ── Sesión por token (v2.7) ──
+// ── Sesión por token ──
 let sessionToken = null;
 
 function sesionExpirada(res){
@@ -1190,6 +1199,13 @@ async function apiPost(data){
   }catch(e){ return {error: e.toString()}; }
 }
 
+// Muestra en pantalla las advertencias que devuelve el servidor (producto/material no encontrado, etc.)
+function mostrarAdvertencias(r){
+  if(r && r.advertencias && r.advertencias.length){
+    showGlobal('⚠ ' + r.advertencias.join(' · '), 'err', 9000);
+  }
+}
+
 async function loadAll(){
   const btn = document.getElementById('sync-btn');
   btn.classList.add('loading');
@@ -1202,15 +1218,17 @@ async function loadAll(){
     showGlobal('Error de conexión: ' + res.error, 'err', 5000);
     return;
   }
+  // Las capturas canceladas (Estatus = Cancelado) se conservan en Sheets pero no cuentan en la app.
+  const noCanc = x => x.Estatus !== 'Cancelado';
   db.materiales = res.materiales || [];
   db.productos  = res.productos  || [];
   db.maquinas   = res.maquinas   || [];
   db.ops        = res.ops        || [];
-  db.registros  = res.registros  || [];
-  db.entradas   = res.entradas   || [];
+  db.registros  = (res.registros  || []).filter(noCanc);
+  db.entradas   = (res.entradas   || []).filter(noCanc);
   db.movimientos= res.movimientos|| [];
-  db.consumos   = res.consumos   || [];
-  db.embarques  = res.embarques  || [];
+  db.consumos   = (res.consumos   || []).filter(noCanc);
+  db.embarques  = (res.embarques  || []).filter(noCanc);
   db.paros      = res.paros      || [];
   db.formulas   = res.formulas   || [];
   db.formulasOP = res.formulasOP || [];
@@ -1247,6 +1265,7 @@ function render(id){
 function prodName(id){ const p=db.productos.find(x=>x['Prod ID']===id||x.ProdID===id); return p?.Descripcion||id; }
 function maqName(id){ const m=db.maquinas.find(x=>x.MaqID===id||x['Maq ID']===id||x['Maquina ID']===id||x.Nombre===id); return m?.Nombre||id||'—'; }
 function matName(id){ const m=db.materiales.find(x=>x.MatID===id||x['Mat ID']===id); return m?.Descripcion||id; }
+function opVigente(o){ return o.Estatus!=='Terminada' && o.Estatus!=='Cerrada' && o.Estatus!=='Cancelada'; }
 function fmtFecha(f){
   if(!f) return '—';
   try{
@@ -1270,7 +1289,6 @@ function renderDash(){
 
   // ── KPIs ──
   const totP = db.registros.reduce((s,r)=>s+(parseFloat(r.CantidadProducida)||0),0);
-  const totM = db.registros.reduce((s,r)=>s+(parseFloat(r.Merma)||0),0);
 
   // kg usando Pesokg de Sheets
   function kgReg(r){
@@ -1284,9 +1302,9 @@ function renderDash(){
   // Merma ya viene en kg directamente
   const totKgP = db.registros.reduce((s,r)=>s+(parseFloat(r.CantidadProducida)||0)*kgReg(r),0);
   const totKgM = db.registros.reduce((s,r)=>s+(parseFloat(r.Merma)||0),0);
-  const eficKg = totKgP>0?Math.round((totKgP-totKgM)/totKgP*100):0;
   const hayPeso = totKgP>0;
   const fmtKg = kg=>kg.toFixed(1)+' kg';
+  const regsConMerma = db.registros.filter(r=>(parseFloat(r.Merma)||0)>0).length;
 
   const opsA = db.ops.filter(o=>o.Estatus==='Pendiente'||o.Estatus==='En proceso').length;
   const matC = db.materiales.filter(m=>(parseFloat(m.StockActual)||0)<=(parseFloat(m.StockMinimo)||0)&&(parseFloat(m.StockMinimo)||0)>0).length;
@@ -1302,14 +1320,15 @@ function renderDash(){
     <div class="stat-card"><div class="stat-label">Eficiencia kg</div><div class="stat-value ${eficKg2>=90?'green':eficKg2>=70?'amber':'red'}">${hayPeso?eficKg2+'%':'—'}</div><div style="font-size:11px;color:var(--text3);margin-top:2px">${hayPeso?fmtKg(totKgBuenos)+' buenos':'kg prod. vs merma'}</div></div>
     <div class="stat-card"><div class="stat-label">OPs activas</div><div class="stat-value">${opsA}</div><div style="font-size:11px;color:var(--text3);margin-top:2px">en proceso / pendiente</div></div>
     <div class="stat-card"><div class="stat-label">Embarques</div><div class="stat-value green">${embTotal.toLocaleString('es-MX')}</div><div style="font-size:11px;color:var(--text3);margin-top:2px">unidades enviadas</div></div>
-    <div class="stat-card"><div class="stat-label">Merma total</div><div class="stat-value amber">${hayPeso?fmtKg(totKgM):'—'}</div><div style="font-size:11px;color:var(--text3);margin-top:2px">${Math.round(totM)} rollos con merma</div></div>
+    <div class="stat-card"><div class="stat-label">Merma total</div><div class="stat-value amber">${fmtKg(totKgM)}</div><div style="font-size:11px;color:var(--text3);margin-top:2px">${regsConMerma} registros con merma</div></div>
     <div class="stat-card"><div class="stat-label">Mat. críticos</div><div class="stat-value ${matC>0?'red':''}">${matC}</div><div style="font-size:11px;color:var(--text3);margin-top:2px">bajo mínimo</div></div>
     <div class="stat-card"><div class="stat-label">Paros activos</div><div class="stat-value ${parosA>0?'red':''}">${parosA}</div><div style="font-size:11px;color:var(--text3);margin-top:2px">sin cerrar</div></div>`;
 
   // ── OPs activas ──
-  document.getElementById('d-ops').innerHTML = db.ops.filter(o=>o.Estatus!=='Terminada'&&o.Estatus!=='Cerrada').length === 0
+  const opsVig = db.ops.filter(opVigente);
+  document.getElementById('d-ops').innerHTML = opsVig.length === 0
     ? '<p style="color:var(--text3);font-size:13px;padding:12px 16px">Sin órdenes activas.</p>'
-    : db.ops.filter(o=>o.Estatus!=='Terminada'&&o.Estatus!=='Cerrada').map(o=>{
+    : opsVig.map(o=>{
         const regs = db.registros.filter(r=>r.OPID===o.OPID);
         const prod = regs.reduce((s,r)=>s+(parseFloat(r.CantidadProducida)||0),0);
         const cant = parseFloat(o.CantidadPlaneada)||1;
@@ -1494,6 +1513,8 @@ function renderOps(){
       : o.Estatus==='En pausa'
       ? `<button class="btn btn-sm cambiar-estatus-btn" data-opid="${o.OPID}" data-estatus="En proceso" style="background:#E6F1FB;color:#185FA5;border-color:#c0cef0">▶ Reanudar</button>`
       : '';
+    const btnCancelar = o.Estatus==='Cancelada' ? '' :
+      `<button class="btn btn-sm del-op-btn" data-opid="${o.OPID}" data-num="${o.NumeroOP}" style="background:#FDEAEA;color:#8A1A1A;border-color:#f0b8b8">✕ Cancelar</button>`;
     return `<tr>
       <td><strong style="font-family:'DM Mono',monospace;font-size:12px">${o.NumeroOP}</strong></td>
       <td>${prodName(o.ProdID)}</td>
@@ -1506,7 +1527,7 @@ function renderOps(){
         <button class="btn btn-sm" onclick="showOPQR('${o.OPID}','${o.NumeroOP}','${prodName(o.ProdID||o['Prod ID'])}','${o.Lote||''}')" style="background:#EEF2FB;color:#2D4A8A;border-color:#c0cef0;margin-bottom:3px">📲 QR</button>
         <button class="btn btn-sm" onclick="imprimirBitacora('${o.OPID}')" style="background:#E8F5EE;color:#1A6B4A;border-color:#b8dfc8;margin-bottom:3px">🖨️ Bitácora</button>
         ${adjBoton('OP', o.OPID, 'Bitacora_OP')}
-        <button class="btn btn-sm del-op-btn" data-opid="${o.OPID}" data-num="${o.NumeroOP}" style="background:#FDEAEA;color:#8A1A1A;border-color:#f0b8b8">✕ Borrar</button>
+        ${btnCancelar}
       </td></tr>`;
   }).join('');
 }
@@ -1522,13 +1543,19 @@ async function cambiarEstatus(opid, nuevoEstatus){
   renderOps();
 }
 
-async function borrarOP(opid, numop){
-  if(!confirm(`¿Seguro que quieres borrar la OP ${numop}? Esta acción no se puede deshacer.`)) return;
-  showGlobal(`Borrando OP ${numop}...`, 'inf', 0);
+// v2.8: ya no se borra la OP; se marca Cancelada (se conserva el historial y los registros).
+async function cancelarOP(opid, numop){
+  const nRegs = db.registros.filter(r=>r.OPID===opid).length;
+  const aviso = nRegs
+    ? `La OP ${numop} ya tiene ${nRegs} registro(s) de producción. Se marcará como CANCELADA; los registros y el inventario NO se modifican.`
+    : `¿Cancelar la OP ${numop}?`;
+  if(!confirm(aviso + '\n\n¿Continuar?')) return;
+  showGlobal(`Cancelando OP ${numop}...`, 'inf', 0);
   const r = await apiPost({action:'deleteOP', OPID:opid});
   if(r.error){ showGlobal('Error: '+r.error, 'err', 4000); return; }
-  db.ops = db.ops.filter(o=>o.OPID!==opid);
-  showGlobal(`✓ OP ${numop} eliminada correctamente.`, 'ok', 2500);
+  const op = db.ops.find(o=>o.OPID===opid);
+  if(op) op.Estatus = 'Cancelada';
+  showGlobal(`✓ OP ${numop} cancelada.`, 'ok', 2500);
   renderOps();
 }
 
@@ -1581,42 +1608,40 @@ function resetFormOP(){
 }
 
 async function saveOP(){
-  const num = document.getElementById('op-num').value.trim();
-  const prodid = document.getElementById('op-prod').value;
-  const cant = parseFloat(document.getElementById('op-cant').value)||0;
-  const maqid = document.getElementById('op-maq').value;
-  const turno = document.getElementById('op-turno').value;
-  const fecha = document.getElementById('op-fecha').value;
-  const lote = document.getElementById('op-lote').value;
-  const est = document.getElementById('op-est').value;
-  const notas = document.getElementById('op-notas').value;
-  if(!num||!cant){ showAlert('al-op','Completa número OP y cantidad.','err'); return; }
+  return guard('saveOP', async ()=>{
+    const num = document.getElementById('op-num').value.trim();
+    const prodid = document.getElementById('op-prod').value;
+    const cant = parseFloat(document.getElementById('op-cant').value)||0;
+    const maqid = document.getElementById('op-maq').value;
+    const turno = document.getElementById('op-turno').value;
+    const fecha = document.getElementById('op-fecha').value;
+    const lote = document.getElementById('op-lote').value;
+    const est = document.getElementById('op-est').value;
+    const notas = document.getElementById('op-notas').value;
+    if(!num||!cant){ showAlert('al-op','Completa número OP y cantidad.','err'); return; }
 
-  // ── Recolectar y validar receta de la OP ──
-  const lineasRecetaEls = document.querySelectorAll('#op-receta-wrap .receta-linea');
-  const receta = [];
-  lineasRecetaEls.forEach(el=>{
-    const mat = el.querySelector('.receta-linea-mat')?.value;
-    const pct = parseFloat(el.querySelector('.receta-linea-pct')?.value) || 0;
-    if(mat && pct>0) receta.push({MatID:mat, Porcentaje:pct});
+    // ── Recolectar y validar receta de la OP ──
+    const lineasRecetaEls = document.querySelectorAll('#op-receta-wrap .receta-linea');
+    const receta = [];
+    lineasRecetaEls.forEach(el=>{
+      const mat = el.querySelector('.receta-linea-mat')?.value;
+      const pct = parseFloat(el.querySelector('.receta-linea-pct')?.value) || 0;
+      if(mat && pct>0) receta.push({MatID:mat, Porcentaje:pct});
+    });
+    if(!receta.length){ showAlert('al-op','Agrega la receta de materiales para esta OP (obligatoria).','err'); return; }
+    const sumaReceta = receta.reduce((s,r)=>s+r.Porcentaje,0);
+    if(Math.abs(sumaReceta-100) > 0.01){ showAlert('al-op',`La receta debe sumar 100%. Actualmente suma ${sumaReceta.toFixed(2)}%.`,'err'); return; }
+
+    showAlert('al-op','Guardando en Google Sheets...','inf');
+    const opid = uid();
+    // OP + receta viajan en UNA sola llamada: no puede quedar una OP sin receta por un corte a medias.
+    const r = await apiPost({action:'saveOP',OPID:opid,NumeroOP:num,ProdID:prodid,CantidadPlaneada:cant,MaquinaID:maqid,Turno:turno,FechaPlaneada:fecha,Lote:lote,Estatus:est,Notas:notas,PedidoID:(opPedidoVinculado||''),CreatedBy:currentUser?.id||'',CreatedAt:nowStr(),Receta:receta});
+    if(r.error){ showAlert('al-op','Error: '+r.error,'err'); return; }
+
+    showAlert('al-op','OP y receta guardadas correctamente en Google Sheets.','ok');
+    opPedidoVinculado = null; // limpiar después de guardar
+    setTimeout(()=>{ toggleCard('form-op'); resetFormOP(); loadAll(); }, 1200);
   });
-  if(!receta.length){ showAlert('al-op','Agrega la receta de materiales para esta OP (obligatoria).','err'); return; }
-  const sumaReceta = receta.reduce((s,r)=>s+r.Porcentaje,0);
-  if(Math.abs(sumaReceta-100) > 0.01){ showAlert('al-op',`La receta debe sumar 100%. Actualmente suma ${sumaReceta.toFixed(2)}%.`,'err'); return; }
-
-  showAlert('al-op','Guardando en Google Sheets...','inf');
-  const opid = uid();
-  const r = await apiPost({action:'saveOP',OPID:opid,NumeroOP:num,ProdID:prodid,CantidadPlaneada:cant,MaquinaID:maqid,Turno:turno,FechaPlaneada:fecha,Lote:lote,Estatus:est,Notas:notas,PedidoID:(opPedidoVinculado||''),CreatedBy:'Admin',CreatedAt:nowStr()});
-  if(r.error){ showAlert('al-op','Error: '+r.error,'err'); return; }
-
-  // ── Guardar líneas de receta vinculadas a esta OP ──
-  for(const l of receta){
-    await apiPost({action:'saveFormulaOP', LineaID:'FOP-'+uid(), OPID:opid, MatID:l.MatID, Porcentaje:l.Porcentaje});
-  }
-
-  showAlert('al-op','OP y receta guardadas correctamente en Google Sheets.','ok');
-  opPedidoVinculado = null; // limpiar después de guardar
-  setTimeout(()=>{ toggleCard('form-op'); resetFormOP(); loadAll(); }, 1500);
 }
 
 // ── LOGIN ─────────────────────────────────────────────────────
@@ -1646,7 +1671,7 @@ async function doLogin(){
   document.getElementById('login-error').textContent = 'Verificando...';
   const r = await apiPost({action:'login', PIN: pinBuffer});
   if(r.error || !r.ok){
-    document.getElementById('login-error').textContent = 'PIN incorrecto. Intenta de nuevo.';
+    document.getElementById('login-error').textContent = r.bloqueado ? r.error : 'PIN incorrecto. Intenta de nuevo.';
     pinBuffer = '';
     updatePinDots();
     // shake animation
@@ -1681,14 +1706,12 @@ function aplicarPermisos(rol){
   const esAlmacen = rol === 'Jefe de almacen' || rol === 'JefeAlmacen' || rol === 'Jefe de Almacen' || rol === 'Jefe Almacen' || rol === 'Almacen';
   const esOper    = rol === 'Operador';
 
-  // Permisos por módulo:
-  // OPs:        solo Admin y Nancy (Jefe produccion = Admin)
+  // Permisos por módulo (solo visuales; la seguridad real requiere validar rol en el servidor):
+  // OPs:        solo Admin
   // Paros:      Admin + Jefe de planta
   // Prod/Consumos: Admin + Jefe de planta + Operador + Almacen
-  // Embarques:  Admin + Almacen
-  // Entrada MP: Admin + Almacen
-  // Inv MP/PT:  todos
-  // Trazabilidad/Reportes: todos
+  // Embarques / Entrada MP / Traspasos / Pedidos / Salida MP: Admin + Almacen
+  // Inv MP/PT, Trazabilidad, Reportes: todos
 
   const navOps = document.querySelector(`.nav-item[onclick*="'ops'"]`);
   if(navOps) navOps.style.display = esAdmin ? '' : 'none';
@@ -1720,6 +1743,7 @@ function aplicarPermisos(rol){
   }
 }
 let scannedOPID = null;
+let codeReader = null;
 
 function openScanner(){
   const modal = document.getElementById('scanner-modal');
@@ -1746,8 +1770,21 @@ function procesarCodigo(code){
   const prod = db.productos.find(p=>p.Codigo===code||p['Prod ID']===code||p.ProdID===code);
   if(!prod){ showGlobal(`Código "${code}" no encontrado. Selecciona OP manualmente.`,'err',4000); toggleManual(); return; }
   const prodId = prod['Prod ID']||prod.ProdID;
-  const opsActivas = db.ops.filter(o=>(o.ProdID===prodId||o['Prod ID']===prodId)&&o.Estatus!=='Terminada'&&o.Estatus!=='Cerrada');
+  const opsActivas = db.ops.filter(o=>(o.ProdID===prodId||o['Prod ID']===prodId)&&opVigente(o));
   if(!opsActivas.length){ showGlobal(`Producto: ${prod.Descripcion}. Sin OPs activas.`,'err',4000); toggleManual(); return; }
+
+  // Si hay más de una OP activa del mismo producto (varias máquinas/líneas), NO se adivina:
+  // se le pide al operador que elija cuál.
+  if(opsActivas.length > 1){
+    scannedOPID = null;
+    document.getElementById('scan-result').style.display = 'none';
+    const sel = document.getElementById('pr-op');
+    if(sel) sel.innerHTML = '<option value="">— Elige la OP —</option>' + opsActivas.map(o=>`<option value="${o.OPID}">${o.NumeroOP} · ${maqName(o.MaquinaID||o['Maquina ID'])} · ${o.Turno||''}</option>`).join('');
+    document.getElementById('manual-select').style.display = 'block';
+    showGlobal(`Hay ${opsActivas.length} OPs activas de "${prod.Descripcion}". Elige a cuál corresponde.`,'inf',6000);
+    return;
+  }
+
   scannedOPID = opsActivas[0].OPID;
   document.getElementById('scan-prod-name').textContent = prod.Descripcion;
   document.getElementById('scan-op-name').textContent = `OP: ${opsActivas[0].NumeroOP} · Planeado: ${opsActivas[0].CantidadPlaneada} rollos`;
@@ -1893,11 +1930,6 @@ function resetEmbarque(){
   toggleCard('form-emb');
 }
 
-function clearEmbScan(){
-  scannedEmbProdID = null;
-  document.getElementById('emb-scan-result').style.display = 'none';
-}
-
 function toggleEmbManual(){
   const m = document.getElementById('emb-manual');
   m.style.display = m.style.display==='none' ? 'block' : 'none';
@@ -1906,7 +1938,7 @@ function toggleManual(){ const m=document.getElementById('manual-select'); m.sty
 
 function renderProd(){
   const s = document.getElementById('pr-op');
-  if(s) s.innerHTML = db.ops.filter(o=>o.Estatus!=='Cerrada'&&o.Estatus!=='Terminada').map(o=>`<option value="${o.OPID}">${o.NumeroOP} · ${prodName(o.ProdID||o['Prod ID'])}</option>`).join('');
+  if(s) s.innerHTML = db.ops.filter(opVigente).map(o=>`<option value="${o.OPID}">${o.NumeroOP} · ${prodName(o.ProdID||o['Prod ID'])}</option>`).join('');
   const pf = document.getElementById('pr-fecha');
   if(pf && !pf.value) pf.value = today();
   const tb = document.getElementById('t-prod');
@@ -1920,89 +1952,71 @@ function renderProd(){
   }).join('');
 }
 
+// RegID pendiente: si el envío se corta o el operador reintenta con los mismos datos,
+// se reutiliza el mismo RegID y el servidor ignora el duplicado.
+let pendingReg = { sig:'', id:'' };
+
 async function saveProd(){
-  const opid = scannedOPID || document.getElementById('pr-op')?.value;
-  const turno = document.getElementById('pr-turno').value;
-  const cant = parseFloat(document.getElementById('pr-cant').value)||0;
-  const merma = parseFloat(document.getElementById('pr-merma').value)||0;
-  const hi = document.getElementById('pr-hi').value;
-  const hf = document.getElementById('pr-hf').value;
-  const obs = document.getElementById('pr-obs').value;
-  if(!opid){ showAlert('al-prod','Escanea un producto o selecciona una OP manualmente.','err'); return; }
-  if(!cant){ showAlert('al-prod','Captura la cantidad producida.','err'); return; }
-  const op = db.ops.find(o=>o.OPID===opid);
-  const pct = op ? Math.round(cant/(parseFloat(op.CantidadPlaneada)||1)*100) : 0;
-  const fechaProd = document.getElementById('pr-fecha').value;
-  // Armar la fecha como dd/mm/yyyy directamente del texto, sin pasar por UTC
-  let createdAtProd;
-  if(fechaProd){
-    const partes = fechaProd.split('-');
-    createdAtProd = partes[2]+'/'+partes[1]+'/'+partes[0] + ', 12:00:00 p.m.';
-  } else {
-    createdAtProd = nowStr();
-  }
-  showAlert('al-prod','Guardando en Google Sheets...','inf');
-  const r = await apiPost({action:'saveRegistro',RegID:uid(),OPID:opid,ProdID:op?.ProdID||op?.['Prod ID']||'',Turno:turno,OperadorID:'USR-001',MaquinaID:op?.MaquinaID||'',CantidadProducida:cant,Merma:merma,HoraInicio:hi,HoraFin:hf,Observaciones:obs,Cumplimiento:pct,CreatedAt:createdAtProd});
-  if(r.error){ showAlert('al-prod','Error: '+r.error,'err'); return; }
-  const prod = db.productos.find(p=>p['Prod ID']===(op?.ProdID||op?.['Prod ID'])||p.ProdID===(op?.ProdID||op?.['Prod ID']));
-  const antes = parseFloat(prod?.StockActual)||0;
-  await apiPost({action:'saveMovimiento',MovID:uid(),TipoMov:'Entrada_PT',EntidadID:op?.ProdID||op?.['Prod ID'],TipoEntidad:'PT',Cantidad:cant,StockAntes:antes,StockDespues:antes+cant,RefID:op?.NumeroOP||opid,UsuarioID:currentUser?.id||'USR-001',AlmacenID:ALMACEN_MATRIZ});
-
-  // ── Merma: entra automáticamente al inventario como SKU de merma (kg), en Bodega Matriz ──
-  if(merma > 0){
-    const mermaProd = db.productos.find(p=>(p['Prod ID']||p.ProdID)===MERMA_PROD_ID);
-    const mermaAntes = parseFloat(mermaProd?.StockActual)||0;
-    await apiPost({action:'saveMovimiento',MovID:uid(),TipoMov:'Entrada_Merma',EntidadID:MERMA_PROD_ID,TipoEntidad:'PT',Cantidad:merma,StockAntes:mermaAntes,StockDespues:mermaAntes+merma,RefID:op?.NumeroOP||opid,UsuarioID:currentUser?.id||'USR-001',AlmacenID:ALMACEN_MATRIZ});
-  }
-  showAlert('al-prod','Guardando consumos automáticos...','inf');
-
-  // ── Consumo automático de MP basado en la receta de ESTA OP (FORMULAS_OP) ──
-  const prodId = op?.ProdID || op?.['Prod ID'];
-  const prodObj = db.productos.find(p=>(p['Prod ID']||p.ProdID)===prodId);
-  const pesoKg = parseFloat(prodObj?.Pesokg)||0;
-  const recetaOP = db.formulasOP.filter(f=>f.OPID===opid);
-
-  if(recetaOP.length && pesoKg > 0) {
-    const kgTotales = cant * pesoKg; // kg totales producidos (sin merma)
-    for(const f of recetaOP) {
-      const matid = f.MatID;
-      const pct = parseFloat(f.Porcentaje)||0; // guardado en escala 0-100
-      if(!matid || !pct) continue;
-      const kgConsumo = parseFloat((kgTotales * (pct/100)).toFixed(4));
-      const mat = db.materiales.find(m=>m.MatID===matid||m['Mat ID']===matid);
-      const antes = parseFloat(mat?.StockActual)||0;
-      await apiPost({
-        action:'saveConsumo',
-        ConsumoID: uid(),
-        OPID: opid,
-        MatID: matid,
-        Cantidad: kgConsumo,
-        LoteMP: 'AUTO',
-        OperadorID: currentUser?.id||'USR-001',
-        CreatedAt: nowStr()
-      });
-      await apiPost({action:'saveMovimiento', MovID:uid(), TipoMov:'Consumo_MP',
-        EntidadID:matid, TipoEntidad:'MP', Cantidad:kgConsumo,
-        StockAntes:antes, StockDespues:Math.max(0,antes-kgConsumo),
-        RefID:op?.NumeroOP||opid, UsuarioID:currentUser?.id||'USR-001'});
+  return guard('saveProd', async ()=>{
+    const opid = scannedOPID || document.getElementById('pr-op')?.value;
+    const turno = document.getElementById('pr-turno').value;
+    const cant = parseFloat(document.getElementById('pr-cant').value)||0;
+    const merma = parseFloat(document.getElementById('pr-merma').value)||0;
+    const hi = document.getElementById('pr-hi').value;
+    const hf = document.getElementById('pr-hf').value;
+    const obs = document.getElementById('pr-obs').value;
+    if(!opid){ showAlert('al-prod','Escanea un producto o selecciona una OP manualmente.','err'); return; }
+    if(cant<=0){ showAlert('al-prod','Captura la cantidad producida.','err'); return; }
+    if(merma<0){ showAlert('al-prod','La merma no puede ser negativa.','err'); return; }
+    const op = db.ops.find(o=>o.OPID===opid);
+    if(op && op.Estatus==='Cancelada'){ showAlert('al-prod','Esa OP está cancelada.','err'); return; }
+    const pct = op ? Math.round(cant/(parseFloat(op.CantidadPlaneada)||1)*100) : 0;
+    const fechaProd = document.getElementById('pr-fecha').value;
+    // Armar la fecha como dd/mm/yyyy directamente del texto, sin pasar por UTC
+    let createdAtProd;
+    if(fechaProd){
+      const partes = fechaProd.split('-');
+      createdAtProd = partes[2]+'/'+partes[1]+'/'+partes[0] + ', 12:00:00 p.m.';
+    } else {
+      createdAtProd = nowStr();
     }
-    showAlert('al-prod',`✓ Registro guardado · ${recetaOP.length} consumos MP calculados según la receta de esta OP.`,'ok');
-  } else {
-    showAlert('al-prod','Registro guardado correctamente. (Esta OP no tiene receta o el producto no tiene Pesokg, no se calculó consumo automático.)','ok');
-  }
 
-  scannedOPID=null;
-  document.getElementById('scan-result').style.display='none';
-  document.getElementById('pr-cant').value='';
-  document.getElementById('pr-merma').value='';
-  document.getElementById('pr-obs').value='';
-  document.getElementById('pr-fecha').value = today();
-  setTimeout(()=>loadAll(), 1500);
+    const sig = [opid,turno,cant,merma,hi,hf,fechaProd].join('|');
+    if(pendingReg.sig !== sig) pendingReg = { sig, id: uid() };
+
+    showAlert('al-prod','Guardando registro, descontando materia prima y actualizando inventario...','inf');
+    // UNA sola llamada: el servidor guarda el registro, suma PT, merma, descuenta MP según la
+    // receta de la OP y escribe la trazabilidad, todo junto.
+    const r = await apiPost({
+      action:'saveRegistro', RegID:pendingReg.id, OPID:opid,
+      ProdID:op?.ProdID||op?.['Prod ID']||'', Turno:turno, OperadorID:currentUser?.id||'',
+      MaquinaID:op?.MaquinaID||op?.['Maquina ID']||'', CantidadProducida:cant, Merma:merma,
+      HoraInicio:hi, HoraFin:hf, Observaciones:obs, Cumplimiento:pct, CreatedAt:createdAtProd
+    });
+    if(r.error){ showAlert('al-prod','Error: '+r.error,'err'); return; }
+    pendingReg = { sig:'', id:'' };
+
+    if(r.duplicado){
+      showAlert('al-prod','Este registro ya se había guardado antes. No se duplicó.','inf');
+    } else if(r.consumos > 0){
+      showAlert('al-prod',`✓ Registro guardado · ${r.consumos} consumos de MP descontados (${(r.kgTotales||0).toFixed(1)} kg) según la receta de la OP.`,'ok');
+    } else {
+      showAlert('al-prod','Registro guardado, pero NO se descontó materia prima (ver aviso).','inf');
+    }
+    mostrarAdvertencias(r);
+
+    scannedOPID=null;
+    document.getElementById('scan-result').style.display='none';
+    document.getElementById('pr-cant').value='';
+    document.getElementById('pr-merma').value='';
+    document.getElementById('pr-obs').value='';
+    document.getElementById('pr-fecha').value = today();
+    setTimeout(()=>loadAll(), 800);
+  });
 }
 
 function renderInvMP(){
   document.getElementById('t-invmp').innerHTML = db.materiales.map(m=>{
-    const mid = m.MatID||m['Mat ID'];
     const s=parseFloat(m.StockActual)||0, mn=parseFloat(m.StockMinimo)||0;
     const bc=s<=0?'badge-red':s<=mn&&mn>0?'badge-amber':'badge-green';
     const st=s<=0?'Sin stock':s<=mn&&mn>0?'Crítico':'OK';
@@ -2021,23 +2035,24 @@ function renderEntMP(){
 }
 
 async function saveEnt(){
-  const matid = document.getElementById('ent-mat').value;
-  const cant = parseFloat(document.getElementById('ent-cant').value)||0;
-  const lote = document.getElementById('ent-lote').value;
-  const prov = document.getElementById('ent-prov').value;
-  const fact = document.getElementById('ent-fact').value;
-  const fecha = document.getElementById('ent-fecha').value;
-  if(!matid||!cant){ showAlert('al-ent','Selecciona material y captura cantidad.','err'); return; }
-  const mat = db.materiales.find(m=>m.MatID===matid||m['Mat ID']===matid);
-  const antes = parseFloat(mat?.StockActual)||0;
-  showAlert('al-ent','Guardando en Google Sheets...','inf');
-  const r = await apiPost({action:'saveEntradaMP',EntID:uid(),MatID:matid,Cantidad:cant,LoteProveedor:lote,Proveedor:prov,Factura:fact,FechaRecepcion:fecha,OperadorID:'USR-001',Notas:''});
-  if(r.error){ showAlert('al-ent','Error: '+r.error,'err'); return; }
-  await apiPost({action:'saveMovimiento',MovID:uid(),TipoMov:'Entrada_MP',EntidadID:matid,TipoEntidad:'MP',Cantidad:cant,StockAntes:antes,StockDespues:antes+cant,RefID:fact||lote,UsuarioID:'USR-001'});
-  showAlert('al-ent','Entrada registrada. Stock MP actualizado en Sheets.','ok');
-  document.getElementById('ent-cant').value='';
-  document.getElementById('ent-lote').value='';
-  setTimeout(()=>loadAll(), 1500);
+  return guard('saveEnt', async ()=>{
+    const matid = document.getElementById('ent-mat').value;
+    const cant = parseFloat(document.getElementById('ent-cant').value)||0;
+    const lote = document.getElementById('ent-lote').value;
+    const prov = document.getElementById('ent-prov').value;
+    const fact = document.getElementById('ent-fact').value;
+    const fecha = document.getElementById('ent-fecha').value;
+    if(!matid||cant<=0){ showAlert('al-ent','Selecciona material y captura cantidad.','err'); return; }
+    showAlert('al-ent','Guardando en Google Sheets...','inf');
+    // El servidor suma el stock y escribe el movimiento de trazabilidad.
+    const r = await apiPost({action:'saveEntradaMP',EntID:uid(),MatID:matid,Cantidad:cant,LoteProveedor:lote,Proveedor:prov,Factura:fact,FechaRecepcion:fecha,OperadorID:currentUser?.id||'',Notas:'',CreatedAt:nowStr()});
+    if(r.error){ showAlert('al-ent','Error: '+r.error,'err'); return; }
+    showAlert('al-ent','Entrada registrada. Stock MP actualizado en Sheets.','ok');
+    mostrarAdvertencias(r);
+    document.getElementById('ent-cant').value='';
+    document.getElementById('ent-lote').value='';
+    setTimeout(()=>loadAll(), 800);
+  });
 }
 
 let invPtFiltros = { soloDisponible: true, busqueda: '' };
@@ -2075,10 +2090,8 @@ function renderInvPT(){
 
 // ══════════════════════════════════════════════════════
 // TRASPASOS ENTRE BODEGAS (Bodega Matriz ⇄ CEDIS U-Storage)
-// No mueve el StockActual total de PRODUCTOS (sigue siendo
-// la suma de ambas bodegas) — solo redistribuye entre
-// STOCK_ALMACEN. Se registra también en MOVIMIENTOS para
-// que quede en la Trazabilidad.
+// No mueve el StockActual total de PRODUCTOS — solo redistribuye
+// entre STOCK_ALMACEN. El servidor también escribe la trazabilidad.
 // ══════════════════════════════════════════════════════
 
 function renderTraspasos(){
@@ -2106,21 +2119,22 @@ function renderTraspasoStockInfo(){
 }
 
 async function saveTraspaso(){
-  const prodid = document.getElementById('tra-prod').value;
-  const origen = document.getElementById('tra-origen').value;
-  const destino = document.getElementById('tra-destino').value;
-  const cant = parseFloat(document.getElementById('tra-cant').value)||0;
-  if(!prodid||!cant){ showAlert('al-traspaso','Selecciona producto y cantidad.','err'); return; }
-  if(origen===destino){ showAlert('al-traspaso','La bodega origen y destino no pueden ser la misma.','err'); return; }
-  const antes = stockEnAlmacen(prodid, origen);
-  if(cant > antes){ showAlert('al-traspaso',`Stock insuficiente en ${almacenName(origen)}. Disponible: ${antes}`,'err'); return; }
-  showAlert('al-traspaso','Guardando traspaso...','inf');
-  const r = await apiPost({action:'saveTraspaso', TraspasoID:uid(), ProdID:prodid, Cantidad:cant, AlmacenOrigen:origen, AlmacenDestino:destino, UsuarioID:currentUser?.id||'USR-001', CreatedAt:nowStr()});
-  if(r.error){ showAlert('al-traspaso','Error: '+r.error,'err'); return; }
-  await apiPost({action:'saveMovimiento', MovID:uid(), TipoMov:'Traspaso_Almacen', EntidadID:prodid, TipoEntidad:'PT', Cantidad:cant, StockAntes:antes, StockDespues:antes-cant, RefID:'Traspaso', UsuarioID:currentUser?.id||'USR-001', AlmacenID:origen, AlmacenDestino:destino});
-  showAlert('al-traspaso','Traspaso registrado correctamente.','ok');
-  document.getElementById('tra-cant').value='';
-  setTimeout(()=>loadAll(), 1500);
+  return guard('saveTraspaso', async ()=>{
+    const prodid = document.getElementById('tra-prod').value;
+    const origen = document.getElementById('tra-origen').value;
+    const destino = document.getElementById('tra-destino').value;
+    const cant = parseFloat(document.getElementById('tra-cant').value)||0;
+    if(!prodid||cant<=0){ showAlert('al-traspaso','Selecciona producto y cantidad.','err'); return; }
+    if(origen===destino){ showAlert('al-traspaso','La bodega origen y destino no pueden ser la misma.','err'); return; }
+    const antes = stockEnAlmacen(prodid, origen);
+    if(cant > antes){ showAlert('al-traspaso',`Stock insuficiente en ${almacenName(origen)}. Disponible: ${antes}`,'err'); return; }
+    showAlert('al-traspaso','Guardando traspaso...','inf');
+    const r = await apiPost({action:'saveTraspaso', TraspasoID:uid(), ProdID:prodid, Cantidad:cant, AlmacenOrigen:origen, AlmacenDestino:destino, UsuarioID:currentUser?.id||'', CreatedAt:nowStr()});
+    if(r.error){ showAlert('al-traspaso','Error: '+r.error,'err'); return; }
+    showAlert('al-traspaso','Traspaso registrado correctamente.','ok');
+    document.getElementById('tra-cant').value='';
+    setTimeout(()=>loadAll(), 800);
+  });
 }
 
 let trazFiltro = '';
@@ -2137,7 +2151,7 @@ function renderTraz(){
   const lista = trazFiltro ? db.movimientos.filter(m=>m.TipoMov===trazFiltro) : db.movimientos;
   if(!lista.length){ tb.innerHTML='<tr><td colspan="8" class="empty-row">Sin movimientos.</td></tr>'; return; }
   tb.innerHTML = [...lista].reverse().map(m=>{
-    const bc = m.TipoMov==='Entrada_PT'?'badge-green':m.TipoMov==='Entrada_Merma'?'badge-green':m.TipoMov==='Entrada_MP'?'badge-blue':m.TipoMov==='Traspaso_Almacen'?'badge-blue':'badge-amber';
+    const bc = m.TipoMov==='Entrada_PT'?'badge-green':m.TipoMov==='Entrada_Merma'?'badge-green':m.TipoMov==='Entrada_MP'?'badge-blue':m.TipoMov==='Traspaso_Almacen'?'badge-blue':String(m.TipoMov||'').startsWith('Reversion')?'badge-red':'badge-amber';
     const nombre = matName(m.EntidadID)!==m.EntidadID ? matName(m.EntidadID) : prodName(m.EntidadID);
     const bodega = m.TipoMov==='Traspaso_Almacen' ? `${almacenName(m.AlmacenID)} → ${almacenName(m.AlmacenDestino)}` : (m.AlmacenID ? almacenName(m.AlmacenID) : '—');
     return `<tr><td style="font-family:'DM Mono',monospace;font-size:11px">${m.Timestamp||''}</td><td><span class="badge ${bc}">${m.TipoMov}</span></td><td>${nombre}</td><td>${m.Cantidad}</td><td>${m.StockAntes}</td><td>${m.StockDespues}</td><td style="font-size:11px">${bodega}</td><td style="font-family:'DM Mono',monospace;font-size:11px">${m.RefID||''}</td></tr>`;
@@ -2148,7 +2162,7 @@ document.getElementById('d-fecha').textContent = new Date().toLocaleDateString('
 
 function renderConsumos(){
   const sop = document.getElementById('con-op');
-  if(sop) sop.innerHTML = db.ops.filter(o=>o.Estatus!=='Terminada'&&o.Estatus!=='Cerrada').map(o=>`<option value="${o.OPID}">${o.NumeroOP} · ${prodName(o.ProdID||o['Prod ID'])}</option>`).join('');
+  if(sop) sop.innerHTML = db.ops.filter(opVigente).map(o=>`<option value="${o.OPID}">${o.NumeroOP} · ${prodName(o.ProdID||o['Prod ID'])}</option>`).join('');
   const sm = document.getElementById('con-mat');
   if(sm) sm.innerHTML = db.materiales.map(m=>`<option value="${m.MatID||m['Mat ID']}">${m.Descripcion} (${parseFloat(m.StockActual)||0} ${m.Unidad})</option>`).join('');
   const tb = document.getElementById('t-consumos');
@@ -2162,22 +2176,25 @@ function renderConsumos(){
 }
 
 async function saveConsumo(){
-  const opid = document.getElementById('con-op').value;
-  const matid = document.getElementById('con-mat').value;
-  const cant = parseFloat(document.getElementById('con-cant').value)||0;
-  const lote = document.getElementById('con-lote').value;
-  if(!opid||!matid||!cant){ showAlert('al-consumo','Selecciona OP, material y cantidad.','err'); return; }
-  const mat = db.materiales.find(m=>m.MatID===matid||m['Mat ID']===matid);
-  const antes = parseFloat(mat?.StockActual)||0;
-  if(cant > antes){ showAlert('al-consumo',`Stock insuficiente. Disponible: ${antes} ${mat?.Unidad||'kg'}`, 'err'); return; }
-  showAlert('al-consumo','Guardando consumo...','inf');
-  const r = await apiPost({action:'saveConsumo', ConsumoID:uid(), OPID:opid, MatID:matid, Cantidad:cant, LoteMP:lote, OperadorID:'USR-001', CreatedAt:nowStr()});
-  if(r.error){ showAlert('al-consumo','Error: '+r.error,'err'); return; }
-  await apiPost({action:'saveMovimiento', MovID:uid(), TipoMov:'Consumo_MP', EntidadID:matid, TipoEntidad:'MP', Cantidad:cant, StockAntes:antes, StockDespues:antes-cant, RefID:db.ops.find(o=>o.OPID===opid)?.NumeroOP||opid, UsuarioID:'USR-001'});
-  showAlert('al-consumo','Consumo registrado. Stock MP actualizado.','ok');
-  document.getElementById('con-cant').value='';
-  document.getElementById('con-lote').value='';
-  setTimeout(()=>loadAll(), 1500);
+  return guard('saveConsumo', async ()=>{
+    const opid = document.getElementById('con-op').value;
+    const matid = document.getElementById('con-mat').value;
+    const cant = parseFloat(document.getElementById('con-cant').value)||0;
+    const lote = document.getElementById('con-lote').value;
+    if(!opid||!matid||cant<=0){ showAlert('al-consumo','Selecciona OP, material y cantidad.','err'); return; }
+    const mat = db.materiales.find(m=>m.MatID===matid||m['Mat ID']===matid);
+    const antes = parseFloat(mat?.StockActual)||0;
+    if(cant > antes){ showAlert('al-consumo',`Stock insuficiente. Disponible: ${antes} ${mat?.Unidad||'kg'}`, 'err'); return; }
+    showAlert('al-consumo','Guardando consumo...','inf');
+    // El servidor descuenta el stock y escribe el movimiento de trazabilidad.
+    const r = await apiPost({action:'saveConsumo', ConsumoID:uid(), OPID:opid, MatID:matid, Cantidad:cant, LoteMP:lote, OperadorID:currentUser?.id||'', CreatedAt:nowStr()});
+    if(r.error){ showAlert('al-consumo','Error: '+r.error,'err'); return; }
+    showAlert('al-consumo','Consumo registrado. Stock MP actualizado.','ok');
+    mostrarAdvertencias(r);
+    document.getElementById('con-cant').value='';
+    document.getElementById('con-lote').value='';
+    setTimeout(()=>loadAll(), 800);
+  });
 }
 
 function renderEmbarques(){
@@ -2289,30 +2306,30 @@ function autocompletarClienteEmb(){
 }
 
 async function saveEmbarque(){
-  const folio = document.getElementById('emb-folio').value.trim();
-  const cliente = document.getElementById('emb-cliente').value.trim();
-  const prodid = scannedEmbProdID || document.getElementById('emb-prod').value;
-  const cant = embContador > 0 ? embContador : parseFloat(document.getElementById('emb-cant-manual')?.value)||0;
-  console.log('Cantidad embarque:', cant);
-  const fecha = document.getElementById('emb-fecha').value;
-  const notas = document.getElementById('emb-notas').value;
-  const transportista = document.getElementById('emb-transportista')?.value.trim() || '';
-  const placas = document.getElementById('emb-placas')?.value.trim() || '';
-  const pedidoVinc = document.getElementById('emb-pedido')?.value || '';
-  const almacen = document.getElementById('emb-almacen')?.value || ALMACEN_MATRIZ;
-  if(!folio||!cant||!prodid){ showAlert('al-emb','Completa folio, producto y cantidad.','err'); return; }
-  const dispEnBodega = stockEnAlmacen(prodid, almacen);
-  if(cant > dispEnBodega){ showAlert('al-emb',`Stock insuficiente en ${almacenName(almacen)}. Disponible: ${dispEnBodega}`,'err'); return; }
-  showAlert('al-emb','Guardando embarque...','inf');
-  const r = await apiPost({action:'saveEmbarque', EmbID:uid(), Folio:folio, Cliente:cliente, ProdID:prodid, Cantidad:cant, FechaEmbarque:fecha, OperadorID:currentUser?.id||'USR-001', PedidoID:pedidoVinc, Notas:notas, Transportista:transportista, Placas:placas, AlmacenID:almacen, CreatedAt:nowStr()});
-  if(r.error){ showAlert('al-emb','Error: '+r.error,'err'); return; }
-  const prod = db.productos.find(p=>p['Prod ID']===prodid||p.ProdID===prodid);
-  const antes = parseFloat(prod?.StockActual)||0;
-  await apiPost({action:'saveMovimiento', MovID:uid(), TipoMov:'Salida_PT', EntidadID:prodid, TipoEntidad:'PT', Cantidad:cant, StockAntes:antes, StockDespues:Math.max(0,antes-cant), RefID:folio, UsuarioID:currentUser?.id||'USR-001', AlmacenID:almacen});
-  showAlert('al-emb','Embarque registrado correctamente.','ok');
-  scannedEmbProdID = null; embContador = 0; embContadorProdID = null;
-  resetEmbarque();
-  setTimeout(()=>{ loadAll(); }, 1500);
+  return guard('saveEmbarque', async ()=>{
+    const folio = document.getElementById('emb-folio').value.trim();
+    const cliente = document.getElementById('emb-cliente').value.trim();
+    const prodid = scannedEmbProdID || document.getElementById('emb-prod').value;
+    const cant = embContador > 0 ? embContador : parseFloat(document.getElementById('emb-cant-manual')?.value)||0;
+    const fecha = document.getElementById('emb-fecha').value;
+    const notas = document.getElementById('emb-notas').value;
+    const transportista = document.getElementById('emb-transportista')?.value.trim() || '';
+    const placas = document.getElementById('emb-placas')?.value.trim() || '';
+    const pedidoVinc = document.getElementById('emb-pedido')?.value || '';
+    const almacen = document.getElementById('emb-almacen')?.value || ALMACEN_MATRIZ;
+    if(!folio||!cant||!prodid){ showAlert('al-emb','Completa folio, producto y cantidad.','err'); return; }
+    const dispEnBodega = stockEnAlmacen(prodid, almacen);
+    if(cant > dispEnBodega){ showAlert('al-emb',`Stock insuficiente en ${almacenName(almacen)}. Disponible: ${dispEnBodega}`,'err'); return; }
+    showAlert('al-emb','Guardando embarque...','inf');
+    // El servidor valida stock, descuenta PT (total y bodega) y escribe la trazabilidad.
+    const r = await apiPost({action:'saveEmbarque', EmbID:uid(), Folio:folio, Cliente:cliente, ProdID:prodid, Cantidad:cant, FechaEmbarque:fecha, OperadorID:currentUser?.id||'', PedidoID:pedidoVinc, Notas:notas, Transportista:transportista, Placas:placas, AlmacenID:almacen, CreatedAt:nowStr()});
+    if(r.error){ showAlert('al-emb','Error: '+r.error,'err'); return; }
+    showAlert('al-emb','Embarque registrado correctamente.','ok');
+    mostrarAdvertencias(r);
+    scannedEmbProdID = null; embContador = 0; embContadorProdID = null;
+    resetEmbarque();
+    setTimeout(()=>{ loadAll(); }, 800);
+  });
 }
 
 function renderParos(){
@@ -2358,35 +2375,39 @@ function renderParos(){
 }
 
 async function saveParo(){
-  const maqid = document.getElementById('par-maq').value;
-  const opid = document.getElementById('par-op').value;
-  const tipo = document.getElementById('par-tipo').value;
-  const hinicio = document.getElementById('par-hinicio').value;
-  const causa = document.getElementById('par-causa').value;
-  if(!maqid||!tipo||!hinicio){ showAlert('al-paro','Selecciona máquina, tipo y hora de inicio.','err'); return; }
-  showAlert('al-paro','Registrando paro...','inf');
-  const hoy = today();
-  const r = await apiPost({action:'saveParo', ParoID:uid(), MaqID:maqid, OPID:opid||'', TipoParo:tipo, HoraInicio:hoy+'T'+hinicio, Causa:causa, OperadorID:'USR-001', CreatedAt:nowStr()});
-  if(r.error){ showAlert('al-paro','Error: '+r.error,'err'); return; }
-  showAlert('al-paro','Paro registrado. Se notificará al supervisor.','ok');
-  document.getElementById('par-causa').value='';
-  setTimeout(()=>loadAll(), 1500);
+  return guard('saveParo', async ()=>{
+    const maqid = document.getElementById('par-maq').value;
+    const opid = document.getElementById('par-op').value;
+    const tipo = document.getElementById('par-tipo').value;
+    const hinicio = document.getElementById('par-hinicio').value;
+    const causa = document.getElementById('par-causa').value;
+    if(!maqid||!tipo||!hinicio){ showAlert('al-paro','Selecciona máquina, tipo y hora de inicio.','err'); return; }
+    showAlert('al-paro','Registrando paro...','inf');
+    const hoy = today();
+    const r = await apiPost({action:'saveParo', ParoID:uid(), MaqID:maqid, OPID:opid||'', TipoParo:tipo, HoraInicio:hoy+'T'+hinicio, Causa:causa, OperadorID:currentUser?.id||'', CreatedAt:nowStr()});
+    if(r.error){ showAlert('al-paro','Error: '+r.error,'err'); return; }
+    showAlert('al-paro','Paro registrado. Se notificará al supervisor.','ok');
+    document.getElementById('par-causa').value='';
+    setTimeout(()=>loadAll(), 800);
+  });
 }
 
 async function cerrarParo(paroid){
-  const hfin = new Date().toISOString();
-  showGlobal('Cerrando paro...','inf',0);
-  const r = await apiPost({action:'cerrarParo', ParoID:paroid, HoraFin:hfin});
-  if(r.error){ showGlobal('Error: '+r.error,'err',4000); return; }
-  showGlobal(`✓ Paro cerrado. Duración: ${r.duracion||0} minutos.`,'ok',3000);
-  setTimeout(()=>loadAll(), 1000);
+  return guard('cerrarParo-'+paroid, async ()=>{
+    const hfin = new Date().toISOString();
+    showGlobal('Cerrando paro...','inf',0);
+    const r = await apiPost({action:'cerrarParo', ParoID:paroid, HoraFin:hfin});
+    if(r.error){ showGlobal('Error: '+r.error,'err',4000); return; }
+    showGlobal(`✓ Paro cerrado. Duración: ${r.duracion||0} minutos.`,'ok',3000);
+    setTimeout(()=>loadAll(), 1000);
+  });
 }
 
 document.addEventListener('click', function(e){
   if(e.target.classList.contains('del-op-btn')){
     const opid = e.target.getAttribute('data-opid');
     const num = e.target.getAttribute('data-num');
-    borrarOP(opid, num);
+    cancelarOP(opid, num);
   }
   if(e.target.classList.contains('cambiar-estatus-btn')){
     const opid = e.target.getAttribute('data-opid');
@@ -2671,7 +2692,7 @@ function imprimirBitacora(opid) {
     <div class="firma-bloque"><div class="linea"></div><p>Control de calidad</p></div>
   </div>
   <div class="footer">
-    <span>Grupo Dearnes · Plásticos · Control de Producción v1.0</span>
+    <span>Grupo Dearnes · Plásticos · Control de Producción v2.8</span>
     <span>${op.NumeroOP} · Generado: ${new Date().toLocaleString('es-MX')}</span>
   </div>
   </body></html>`);
@@ -2690,7 +2711,7 @@ let smpLineasCount = 0;
 function renderSalidaMP(){
   // Poblar OP destino (activas)
   const sop = document.getElementById('smp-op');
-  if(sop) sop.innerHTML = '<option value="">— Sin OP —</option>' + db.ops.filter(o=>o.Estatus!=='Terminada'&&o.Estatus!=='Cerrada'&&o.Estatus!=='Cancelada').map(o=>`<option value="${o.OPID}">${o.NumeroOP} · ${prodName(o.ProdID||o['Prod ID'])}</option>`).join('');
+  if(sop) sop.innerHTML = '<option value="">— Sin OP —</option>' + db.ops.filter(opVigente).map(o=>`<option value="${o.OPID}">${o.NumeroOP} · ${prodName(o.ProdID||o['Prod ID'])}</option>`).join('');
   // Poblar máquinas
   const sm = document.getElementById('smp-maq');
   if(sm) sm.innerHTML = '<option value="">— Máquina —</option>' + db.maquinas.map(m=>`<option value="${m['Maquina ID']||m.MaqID||m['Maq ID']}">${m.Nombre}</option>`).join('');
@@ -2745,48 +2766,50 @@ function resetFormSMP(){
 }
 
 async function saveSalidaMP(){
-  const folio = document.getElementById('smp-folio').value.trim();
-  const fecha = document.getElementById('smp-fecha').value;
-  const opid = document.getElementById('smp-op').value;
-  const maqid = document.getElementById('smp-maq').value;
-  const solicita = document.getElementById('smp-solicita').value.trim();
-  const entrega = document.getElementById('smp-entrega').value.trim();
-  const obs = document.getElementById('smp-obs').value;
+  return guard('saveSalidaMP', async ()=>{
+    const folio = document.getElementById('smp-folio').value.trim();
+    const fecha = document.getElementById('smp-fecha').value;
+    const opid = document.getElementById('smp-op').value;
+    const maqid = document.getElementById('smp-maq').value;
+    const solicita = document.getElementById('smp-solicita').value.trim();
+    const entrega = document.getElementById('smp-entrega').value.trim();
+    const obs = document.getElementById('smp-obs').value;
 
-  if(!folio){ showAlert('al-smp','Captura el folio del vale.','err'); return; }
+    if(!folio){ showAlert('al-smp','Captura el folio del vale.','err'); return; }
 
-  // Recolectar materiales
-  const lineasEls = document.querySelectorAll('#smp-lineas-wrap .smp-linea');
-  const lineas = [];
-  lineasEls.forEach(el=>{
-    const mat = el.querySelector('.smp-linea-mat')?.value;
-    const cant = parseFloat(el.querySelector('.smp-linea-cant')?.value) || 0;
-    const lote = el.querySelector('.smp-linea-lote')?.value || '';
-    if(mat && cant>0) lineas.push({MatID:mat, Cantidad:cant, Lote:lote});
+    // Recolectar materiales
+    const lineasEls = document.querySelectorAll('#smp-lineas-wrap .smp-linea');
+    const lineas = [];
+    lineasEls.forEach(el=>{
+      const mat = el.querySelector('.smp-linea-mat')?.value;
+      const cant = parseFloat(el.querySelector('.smp-linea-cant')?.value) || 0;
+      const lote = el.querySelector('.smp-linea-lote')?.value || '';
+      if(mat && cant>0) lineas.push({MatID:mat, Cantidad:cant, Lote:lote});
+    });
+    if(!lineas.length){ showAlert('al-smp','Agrega al menos un material con cantidad.','err'); return; }
+
+    // Fecha sin desfase UTC
+    let fechaStr;
+    if(fecha){ const p=fecha.split('-'); fechaStr = p[2]+'/'+p[1]+'/'+p[0]; } else { fechaStr = today().split('-').reverse().join('/'); }
+
+    showAlert('al-smp','Guardando vale de salida...','inf');
+    const salidaID = 'SAL-'+uid();
+    const r = await apiPost({
+      action:'saveSalidaMP', SalidaID:salidaID, Folio:folio, Fecha:fechaStr,
+      OPID:opid, MaqID:maqid, Solicita:solicita, Entrega:entrega, Observaciones:obs,
+      CreatedBy: currentUser?.nombre||'', CreatedAt: nowStr()
+    });
+    if(r.error){ showAlert('al-smp','Error: '+r.error,'err'); return; }
+
+    for(const l of lineas){
+      await apiPost({action:'saveLineaSalidaMP', LineaID:'LSM-'+uid(), SalidaID:salidaID, MatID:l.MatID, Cantidad:l.Cantidad, Lote:l.Lote});
+    }
+
+    showAlert('al-smp','✓ Vale de salida guardado (sin afectar inventario).','ok');
+    resetFormSMP();
+    toggleCard('form-smp');
+    setTimeout(()=>loadAll(), 1200);
   });
-  if(!lineas.length){ showAlert('al-smp','Agrega al menos un material con cantidad.','err'); return; }
-
-  // Fecha sin desfase UTC
-  let fechaStr;
-  if(fecha){ const p=fecha.split('-'); fechaStr = p[2]+'/'+p[1]+'/'+p[0]; } else { fechaStr = today().split('-').reverse().join('/'); }
-
-  showAlert('al-smp','Guardando vale de salida...','inf');
-  const salidaID = 'SAL-'+uid();
-  const r = await apiPost({
-    action:'saveSalidaMP', SalidaID:salidaID, Folio:folio, Fecha:fechaStr,
-    OPID:opid, MaqID:maqid, Solicita:solicita, Entrega:entrega, Observaciones:obs,
-    CreatedBy: currentUser?.nombre||'Admin', CreatedAt: nowStr()
-  });
-  if(r.error){ showAlert('al-smp','Error: '+r.error,'err'); return; }
-
-  for(const l of lineas){
-    await apiPost({action:'saveLineaSalidaMP', LineaID:'LSM-'+uid(), SalidaID:salidaID, MatID:l.MatID, Cantidad:l.Cantidad, Lote:l.Lote});
-  }
-
-  showAlert('al-smp','✓ Vale de salida guardado (sin afectar inventario).','ok');
-  resetFormSMP();
-  toggleCard('form-smp');
-  setTimeout(()=>loadAll(), 1500);
 }
 
 function imprimirValeSalida(salidaID){
@@ -2856,8 +2879,8 @@ let pedLineasCount = 0;
 
 function switchTabPed(tab) {
   pedTabActual = tab;
-  ['activos','hist','alerta'].forEach(t => {
-    const btn = document.getElementById('tab-ped-' + (t==='hist'?'hist':(t==='alerta'?'alerta':'activos')));
+  ['tab-ped-activos','tab-ped-hist','tab-ped-alerta'].forEach(id => {
+    const btn = document.getElementById(id);
     if(btn) btn.classList.remove('active');
   });
   const ids = {activos:'tab-ped-activos', historial:'tab-ped-hist', alertas:'tab-ped-alerta'};
@@ -2994,7 +3017,7 @@ function renderListaPedidos() {
   if(!peds.length) {
     lista.innerHTML = `<div class="card" style="text-align:center;padding:40px;color:var(--text3)">
       ${pedTabActual==='activos'?'No hay pedidos activos. Crea el primero con el botón de arriba.':
-        pedTabActual==='alertas'?'✓ Sin pedidos urgentes ni atrasados.':'No hay pedidos entregados aún.'}</div>`;
+        pedTabActual==='alertas'?'✓ Sin pedidos urgentes ni atrasados.':'No hay pedidos entregados ni cancelados aún.'}</div>`;
     return;
   }
 
@@ -3002,6 +3025,7 @@ function renderListaPedidos() {
     const lineas = db.lineasPedido.filter(l => l.PedidoID === p.PedidoID);
     const diasR = diasRestantes(p.FechaPrometida);
     const entregado = p.Estatus === 'Entregado';
+    const cancelado = p.Estatus === 'Cancelado';
     const pctProd = pctAvancePedido(p.PedidoID);
     const pctEmb  = pctEmbarcadoPedido(p.PedidoID);
     const colProd = pctProd >= 100 ? 'var(--green)' : pctProd >= 50 ? '#D4851A' : 'var(--accent)';
@@ -3042,7 +3066,7 @@ function renderListaPedidos() {
           <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:4px">
             <span style="font-weight:700;font-family:'DM Mono',monospace;font-size:13px">${p.Folio||p.PedidoID}</span>
             <span style="font-size:12px;color:var(--text2)">${p.Cliente||'—'}</span>
-            ${semaforo(diasR, entregado)}
+            ${cancelado ? '<span class="semaforo sem-rojo">✕ Cancelado</span>' : semaforo(diasR, entregado)}
             ${p.Prioridad&&p.Prioridad!=='Normal'?`<span style="font-size:10px;font-weight:700;color:${prioColor};background:${p.Prioridad==='Urgente'?'var(--red-bg)':'var(--amber-bg)'};padding:2px 8px;border-radius:10px">${p.Prioridad}</span>`:''}
           </div>
           <div class="ped-meta">
@@ -3073,7 +3097,7 @@ function renderListaPedidos() {
           ${p.Notas?`<div style="margin-top:10px;font-size:12px;color:var(--text2);background:var(--surface2);padding:8px 10px;border-radius:6px">📝 ${p.Notas}</div>`:''}
           <!-- Acciones -->
           <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:14px;padding-top:10px;border-top:1px solid var(--border)">
-            ${!entregado?`
+            ${(!entregado && !cancelado)?`
             <button class="btn btn-sm" onclick="crearOPdesdePedido('${p.PedidoID}')" style="background:var(--accent-light);color:var(--accent);border-color:var(--accent)">
               ➕ Crear OP vinculada
             </button>
@@ -3083,9 +3107,9 @@ function renderListaPedidos() {
             <button class="btn btn-sm" onclick="verOPsPedido('${p.PedidoID}')" style="background:var(--surface2)">
               📋 Ver OPs vinculadas
             </button>
-            <button class="btn btn-sm del-ped-btn" data-pedid="${p.PedidoID}" style="background:var(--red-bg);color:var(--red);border-color:var(--red)">
-              ✕ Eliminar
-            </button>
+            ${cancelado?'':`<button class="btn btn-sm del-ped-btn" data-pedid="${p.PedidoID}" style="background:var(--red-bg);color:var(--red);border-color:var(--red)">
+              ✕ Cancelar pedido
+            </button>`}
           </div>
         </div>
       </div>
@@ -3129,51 +3153,53 @@ function resetFormPed() {
 }
 
 async function savePedido() {
-  const folio    = document.getElementById('ped-folio').value.trim();
-  const cliente  = document.getElementById('ped-cliente').value.trim();
-  const fechaPed = document.getElementById('ped-fecha-ped').value;
-  const fechaProm= document.getElementById('ped-fecha-prom').value;
-  const canal    = document.getElementById('ped-canal').value;
-  const prio     = document.getElementById('ped-prioridad').value;
-  const notas    = document.getElementById('ped-notas').value;
+  return guard('savePedido', async ()=>{
+    const folio    = document.getElementById('ped-folio').value.trim();
+    const cliente  = document.getElementById('ped-cliente').value.trim();
+    const fechaPed = document.getElementById('ped-fecha-ped').value;
+    const fechaProm= document.getElementById('ped-fecha-prom').value;
+    const canal    = document.getElementById('ped-canal').value;
+    const prio     = document.getElementById('ped-prioridad').value;
+    const notas    = document.getElementById('ped-notas').value;
 
-  if(!folio || !cliente) { showAlert('al-ped','Completa folio y cliente.','err'); return; }
-  if(!fechaProm) { showAlert('al-ped','Ingresa la fecha prometida de entrega.','err'); return; }
+    if(!folio || !cliente) { showAlert('al-ped','Completa folio y cliente.','err'); return; }
+    if(!fechaProm) { showAlert('al-ped','Ingresa la fecha prometida de entrega.','err'); return; }
 
-  // Recolectar líneas
-  const lineasEls = document.querySelectorAll('#ped-lineas-wrap .ped-linea');
-  const lineas = [];
-  lineasEls.forEach(el => {
-    const prod = el.querySelector('.ped-linea-prod')?.value;
-    const cant = parseFloat(el.querySelector('.ped-linea-cant')?.value) || 0;
-    if(prod && cant > 0) lineas.push({ ProdID: prod, Cantidad: cant });
-  });
-  if(!lineas.length) { showAlert('al-ped','Agrega al menos una línea de producto.','err'); return; }
-
-  showAlert('al-ped','Guardando pedido en Google Sheets...','inf');
-  const pedidoID = 'PED-' + uid();
-  const r = await apiPost({
-    action: 'savePedido',
-    PedidoID: pedidoID, Folio: folio, Cliente: cliente,
-    FechaPedido: fechaPed, FechaPrometida: fechaProm,
-    Canal: canal, Prioridad: prio, Notas: notas,
-    Estatus: 'Pendiente', CreatedAt: nowStr()
-  });
-  if(r.error) { showAlert('al-ped','Error: '+r.error,'err'); return; }
-
-  // Guardar líneas
-  for(const l of lineas) {
-    await apiPost({
-      action: 'saveLineaPedido',
-      LineaID: 'LIN-'+uid(), PedidoID: pedidoID,
-      ProdID: l.ProdID, Cantidad: l.Cantidad
+    // Recolectar líneas
+    const lineasEls = document.querySelectorAll('#ped-lineas-wrap .ped-linea');
+    const lineas = [];
+    lineasEls.forEach(el => {
+      const prod = el.querySelector('.ped-linea-prod')?.value;
+      const cant = parseFloat(el.querySelector('.ped-linea-cant')?.value) || 0;
+      if(prod && cant > 0) lineas.push({ ProdID: prod, Cantidad: cant });
     });
-  }
+    if(!lineas.length) { showAlert('al-ped','Agrega al menos una línea de producto.','err'); return; }
 
-  showAlert('al-ped','✓ Pedido guardado correctamente.','ok');
-  resetFormPed();
-  toggleCard('form-ped');
-  setTimeout(()=>loadAll(), 1500);
+    showAlert('al-ped','Guardando pedido en Google Sheets...','inf');
+    const pedidoID = 'PED-' + uid();
+    const r = await apiPost({
+      action: 'savePedido',
+      PedidoID: pedidoID, Folio: folio, Cliente: cliente,
+      FechaPedido: fechaPed, FechaPrometida: fechaProm,
+      Canal: canal, Prioridad: prio, Notas: notas,
+      Estatus: 'Pendiente', CreatedAt: nowStr()
+    });
+    if(r.error) { showAlert('al-ped','Error: '+r.error,'err'); return; }
+
+    // Guardar líneas
+    for(const l of lineas) {
+      await apiPost({
+        action: 'saveLineaPedido',
+        LineaID: 'LIN-'+uid(), PedidoID: pedidoID,
+        ProdID: l.ProdID, Cantidad: l.Cantidad
+      });
+    }
+
+    showAlert('al-ped','✓ Pedido guardado correctamente.','ok');
+    resetFormPed();
+    toggleCard('form-ped');
+    setTimeout(()=>loadAll(), 1200);
+  });
 }
 
 async function marcarEntregado(pedidoId) {
@@ -3187,14 +3213,15 @@ async function marcarEntregado(pedidoId) {
   renderPedidos();
 }
 
-async function borrarPedido(pedidoId) {
-  if(!confirm('¿Eliminar este pedido? No se puede deshacer.')) return;
-  showGlobal('Eliminando pedido...','inf',0);
+// v2.8: ya no se elimina el pedido; se marca Cancelado y se conserva el historial.
+async function cancelarPedido(pedidoId) {
+  if(!confirm('¿Cancelar este pedido? Quedará en el historial como Cancelado.')) return;
+  showGlobal('Cancelando pedido...','inf',0);
   const r = await apiPost({ action:'deletePedido', PedidoID: pedidoId });
   if(r.error) { showGlobal('Error: '+r.error,'err',4000); return; }
-  db.pedidos = db.pedidos.filter(p=>p.PedidoID!==pedidoId);
-  db.lineasPedido = db.lineasPedido.filter(l=>l.PedidoID!==pedidoId);
-  showGlobal('✓ Pedido eliminado.','ok',2500);
+  const p = db.pedidos.find(x=>x.PedidoID===pedidoId);
+  if(p) p.Estatus = 'Cancelado';
+  showGlobal('✓ Pedido cancelado.','ok',2500);
   renderPedidos();
 }
 
@@ -3238,11 +3265,11 @@ function verOPsPedido(pedidoId) {
   showGlobal(`OPs vinculadas: ${lista}`, 'ok', 6000);
 }
 
-// Escuchar evento borrar pedido
+// Escuchar evento cancelar pedido
 document.addEventListener('click', function(e) {
   if(e.target.classList.contains('del-ped-btn')) {
     const pedid = e.target.getAttribute('data-pedid');
-    borrarPedido(pedid);
+    cancelarPedido(pedid);
   }
 });
 
@@ -3557,7 +3584,7 @@ function exportarCSVPedidos() {
 function renderReportes(){ initRepFiltros(); generarReporte(); }
 
 // ══════════════════════════════════════════════════════
-// ADJUNTOS PDF (v2.7) — solo PDF, máx 5 MB, visibles para todos
+// ADJUNTOS PDF — solo PDF, máx 5 MB, visibles para todos
 // ══════════════════════════════════════════════════════
 const ADJ_MAX = 5 * 1024 * 1024;
 const ADJ_NOMBRES = {
@@ -3656,7 +3683,7 @@ async function adjSubir(input, forzar){
   const r = await apiPost({
     action:'subirArchivo', TipoDoc:document.getElementById('adjTipo').value,
     RefTipo:ADJ_CTX.refTipo, RefID:ADJ_CTX.refId, NombreOriginal:f.name, Base64:b64,
-    UsuarioID:currentUser?.id||'USR-001', Forzar:!!forzar
+    UsuarioID:currentUser?.id||'', Forzar:!!forzar
   });
   if(r.ok){
     msg.textContent = '✅ PDF subido.';
@@ -3686,7 +3713,7 @@ async function adjVer(archivoId){
 async function adjCancelar(archivoId){
   const motivo = prompt('Motivo para cancelar este adjunto:');
   if(!motivo) return;
-  const r = await apiPost({action:'cancelarArchivo', ArchivoID:archivoId, Motivo:motivo, UsuarioID:currentUser?.id||'USR-001'});
+  const r = await apiPost({action:'cancelarArchivo', ArchivoID:archivoId, Motivo:motivo, UsuarioID:currentUser?.id||''});
   if(!r.ok){ showGlobal(r.error || 'No se pudo cancelar.', 'err', 3500); return; }
   await adjCargarConteo();
   adjRefrescar();
