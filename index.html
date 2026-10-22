@@ -1184,19 +1184,21 @@ function sesionExpirada(res){
 async function api(params){
   try{
     const url = API + '?' + new URLSearchParams({...params, token: sessionToken || ''});
-    const r = await fetch(url);
+    const ctl = new AbortController(); const tm = setTimeout(()=>ctl.abort(), 60000);
+    const r = await fetch(url, {signal: ctl.signal}); clearTimeout(tm);
     const text = await r.text();
     return sesionExpirada(JSON.parse(text));
-  }catch(e){ return {error: e.toString()}; }
+  }catch(e){ return {error: e.name==='AbortError' ? 'Tiempo agotado: el servidor no respondió en 60 s' : e.toString()}; }
 }
 
 async function apiPost(data){
   try{
     if(data.action !== 'login') data.Token = sessionToken || '';
-    const r = await fetch(API, { method:'POST', body: JSON.stringify(data) });
+    const ctl = new AbortController(); const tm = setTimeout(()=>ctl.abort(), 60000);
+    const r = await fetch(API, { method:'POST', body: JSON.stringify(data), signal: ctl.signal }); clearTimeout(tm);
     const text = await r.text();
     return sesionExpirada(JSON.parse(text));
-  }catch(e){ return {error: e.toString()}; }
+  }catch(e){ return {error: e.name==='AbortError' ? 'Tiempo agotado: el servidor no respondió en 60 s' : e.toString()}; }
 }
 
 // Muestra en pantalla las advertencias que devuelve el servidor (producto/material no encontrado, etc.)
@@ -1671,7 +1673,7 @@ async function doLogin(){
   document.getElementById('login-error').textContent = 'Verificando...';
   const r = await apiPost({action:'login', PIN: pinBuffer});
   if(r.error || !r.ok){
-    document.getElementById('login-error').textContent = r.bloqueado ? r.error : 'PIN incorrecto. Intenta de nuevo.';
+    document.getElementById('login-error').textContent = r.bloqueado ? r.error : (r.error ? 'Error: ' + r.error : 'PIN incorrecto. Intenta de nuevo.');
     pinBuffer = '';
     updatePinDots();
     // shake animation
